@@ -1,0 +1,365 @@
+:root { 
+    --primary-blue: #005a9e; 
+    --light-blue: #f4f7f9; 
+    --dark-text: #2c3e50; 
+    --light-text: #5a7184; 
+    --border-color: #e0e6ed; 
+    --white: #ffffff; 
+    --green: #28a745; 
+    --red: #dc3545; 
+    --score-blue: #007bff; 
+    --event-purple: #6f42c1;
+    --warning-yellow: #ffc107;
+    --warning-orange: #fd7e14;
+}
+body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--light-blue); color: var(--dark-text); margin: 0; padding: 20px; }
+.container { max-width: 1400px; margin: 0 auto; }
+
+/* *** FIX: Minimal header style *** */
+header { 
+    text-align: center; 
+    margin-bottom: 20px; 
+    border-bottom: 2px solid var(--border-color); 
+    padding-bottom: 15px; 
+}
+header h2 {
+    color: var(--primary-blue);
+    margin: 0;
+    font-size: 1.5em;
+}
+
+h2, h3 { color: var(--primary-blue); margin-top: 0; }
+
+/* This is your correct 2-ROW layout */
+.overview-grid { 
+    display: grid; 
+    grid-template-columns: 2fr 1fr; 
+    gap: 30px; 
+    margin-bottom: 30px; 
+}
+main { 
+    display: grid; 
+    grid-template-columns: 1.2fr 1fr 1fr 1.5fr;
+    gap: 30px; 
+}
+
+.dashboard-section, .task-dashboard-section { background-color: var(--white); padding: 25px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
+
+/* *** FIX: Styles for new chart wrapper and toggle position *** */
+.chart-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100%; /* Ensure it fills the grid cell */
+}
+.chart-toggle-buttons {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 10px; /* Was 15px */
+}
+
+.toggle-btn {
+    padding: 6px 12px;
+    font-size: 0.9em;
+    background-color: #f4f7f9;
+    color: var(--light-text);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+}
+.toggle-btn:first-child {
+    border-top-left-radius: 5px;
+    border-bottom-left-radius: 5px;
+}
+.toggle-btn:last-child {
+    border-top-right-radius: 5px;
+    border-bottom-right-radius: 5px;
+    border-left: none;
+}
+.toggle-btn.active {
+    background-color: var(--primary-blue);
+    color: white;
+    border-color: var(--primary-blue);
+}
+
+.charts-grid { 
+    display: grid; 
+    grid-template-columns: 1fr 1.5fr; /* Pie (1fr) | Trend (1.5fr) */
+    gap: 30px; 
+}
+.chart-container { 
+    position: relative; 
+    height: 250px; 
+    width: 100%;
+}
+.chart-wrapper .chart-container {
+    height: 100%; /* Make chart fill remaining space */
+}
+.chart-clickable { cursor: pointer; }
+
+
+/* All panels in the main row */
+.calendar-section, .timer-section, .log-section, .score-section { 
+    background-color: var(--white); 
+    padding: 25px; 
+    border-radius: 8px; 
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); 
+}
+
+.score-section h3 {
+    margin-bottom: 25px; 
+}
+
+.score-logger #logScoreButton {
+    width: 100%;
+}
+
+.calendar-hint { font-size: 0.8em; text-align: center; color: var(--light-text); margin-top: 10px; }
+label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--light-text); }
+select, textarea, input { width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #cdd7e1; font-size: 1em; box-sizing: border-box; }
+.input-group { margin-bottom: 8px; }
+.timer-display { font-size: 3.5em; font-weight: 300; text-align: center; color: var(--dark-text); margin: 15px 0; }
+.timer-controls { display: flex; justify-content: center; gap: 15px; }
+button { padding: 12px 25px; font-size: 1em; border: none; border-radius: 5px; cursor: pointer; transition: all 0.2s ease-in-out; font-weight: 600; }
+.save-btn { background-color: var(--primary-blue); color: white; }
+.save-btn:hover { background-color: #004a80; }
+
+/* Button colors */
+#startButton { background-color: var(--green); color: white; }
+#startButton:hover { background-color: #218838; }
+#startButton:disabled { background-color: #a0d8ab; cursor: not-allowed; }
+#stopButton { background-color: var(--red); color: white; }
+#stopButton:hover { background-color: #c82333; }
+#stopButton:disabled { background-color: #f1a2a9; cursor: not-allowed; }
+#logScoreButton { background-color: var(--score-blue); color: white; }
+#logScoreButton:hover { background-color: #0069d9; }
+#save-event-button { background-color: var(--primary-blue); color: white; }
+#save-event-button:hover { background-color: #004a80; }
+#save-edit-button { background-color: var(--primary-blue); color: white; }
+#save-edit-button:hover { background-color: #004a80; }
+
+/* Error message style */
+.error-message {
+    color: var(--red);
+    font-size: 0.9em;
+    font-weight: bold;
+    min-height: 1.2em;
+    margin-top: -10px;
+    margin-bottom: 10px;
+}
+
+.log-header-controls { display: flex; justify-content: space-between; align-items: center; }
+
+/* *** FIX: Using your stable 360px height *** */
+.session-log-container { 
+    height: 330px; 
+    overflow-y: auto; 
+}
+
+/* Log font size */
+.log-item, .score-item { 
+    border-bottom: 1px solid var(--border-color); 
+    padding: 8px 5px;
+    font-size: 0.85em;
+}
+.log-item .log-header-buttons, .score-item .log-header-buttons {
+    display: flex;
+    gap: 5px;
+}
+
+.log-course { color: var(--primary-blue); font-size: 1.1em; }
+.score-item .log-course { color: var(--score-blue); }
+.score-value { font-size: 1.5em; font-weight: bold; color: var(--dark-text); }
+.delete-btn { background:transparent; color:var(--red); border:1px solid var(--red); padding:4px 8px; font-size:0.8em; }
+.delete-btn:hover { background:var(--red); color:white; }
+
+.edit-btn { 
+    background:transparent; 
+    color:var(--score-blue); 
+    border:1px solid var(--score-blue); 
+    padding:4px 8px; 
+    font-size:0.8em; 
+}
+.edit-btn:hover { background:var(--score-blue); color:white; }
+
+/* *** FIX: Smaller, modern button for "Manage Courses" *** */
+.show-all-btn {
+    padding: 4px 10px;
+    font-size: 0.8em;
+    font-weight: 600;
+    background-color: var(--light-blue);
+    color: var(--primary-blue);
+    border: 1px solid var(--border-color);
+}
+.show-all-btn:hover {
+    background-color: #e0e6ed;
+}
+
+/* --- Calendar Styles --- */
+.flatpickr-day.study-day { background: #fd7e142a !important; font-weight: bold; }
+.flatpickr-day.event-day { border-bottom: 3px solid var(--event-purple) !important; }
+
+/* --- Task Dashboard Styles --- */
+/* *** FIX: Set height to 360px to match Daily Log *** */
+#task-list { 
+    height: 250px; 
+    overflow-y: auto; 
+}
+.task-item { margin-bottom: 15px; }
+.task-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+.task-title { font-weight: bold; color: var(--dark-text); }
+
+.task-info {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.3;
+}
+.task-date {
+    font-size: 0.85em;
+    color: var(--light-text);
+    font-weight: 600;
+}
+
+.task-controls { display: flex; align-items: center; gap: 8px; }
+.task-delete-btn { 
+    background:transparent; 
+    color:var(--green); 
+    border:1px solid var(--green); 
+    padding: 2px 6px; 
+    font-size: 0.75em; 
+    line-height: 1; 
+}
+.task-delete-btn:hover { background:var(--green); color:white; }
+
+.task-edit-btn {
+    padding: 2px 6px;
+    font-size: 0.75em;
+    line-height: 1;
+}
+
+.task-due-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.2;
+    margin-right: 5px;
+}
+
+.task-countdown { 
+    font-size: 0.9em; 
+    color: var(--light-text);
+    white-space: nowrap;
+}
+.task-notice {
+    font-size: 0.9em;
+    font-weight: bold;
+    color: var(--light-text);
+    white-space: nowrap;
+}
+
+.task-bar-bg { background-color: #e9ecef; border-radius: 5px; height: 10px; }
+.task-bar-fg { background-color: var(--event-purple); height: 100%; border-radius: 5px; transition: width 0.5s ease-out; }
+
+/* Warning Color Styles */
+.task-item.warning-near .task-bar-fg { background-color: var(--warning-yellow); }
+.task-item.warning-near .task-notice { color: var(--warning-yellow); }
+
+.task-item.warning-urgent .task-bar-fg { background-color: var(--warning-orange); }
+.task-item.warning-urgent .task-notice { color: var(--warning-orange); }
+
+.task-item.overdue .task-countdown { 
+    color: var(--red); 
+    font-weight: bold; 
+}
+.task-item.overdue .task-notice { color: var(--red); }
+.task-item.overdue .task-bar-fg { 
+    background-color: var(--red); 
+    width: 100% !important; 
+}
+
+/* --- Event Modal Styles --- */
+.modal-overlay { 
+    position: fixed; 
+    top: 0; left: 0; 
+    width: 100%; height: 100%; 
+    background: rgba(0,0,0,0.5); 
+    z-index: 100; 
+    display: none; 
+    align-items: center; 
+    justify-content: center; 
+}
+.modal-content { background: white; padding: 30px; border-radius: 8px; width: 400px; box-shadow: 0 5px 15px rgba(0,0,Of.3); }
+.modal-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.modal-buttons .cancel-btn { background-color: #6c757d; color: white; }
+.modal-buttons .cancel-btn:hover { background-color: #5a6268; }
+
+.modal-buttons .confirm-btn { background-color: var(--red); color: white; }
+.modal-buttons .confirm-btn:hover { background-color: #c82333; }
+
+/* Styles for new Zoomed Chart Modal */
+.chart-modal-content {
+    width: 80%;
+    height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+#zoomed-chart-container {
+    flex-grow: 1;
+    width: 100%;
+    height: 90%;
+}
+
+/* Styles for new Course Management Modal */
+.course-list-container {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    padding: 10px;
+}
+.course-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+.course-list-item:last-child {
+    border-bottom: none;
+}
+.course-delete-btn {
+    padding: 4px 8px;
+    font-size: 0.8em;
+}
+
+/* Styles for the "beautiful" tooltip */
+.tippy-box {
+    background-color: #333;
+    color: white;
+    border-radius: 5px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+}
+.tippy-content {
+    padding: 5px 10px;
+    font-size: 0.9em;
+    text-align: left;
+    white-space: pre-line;
+}
+.tippy-box[data-placement^='top'] > .tippy-arrow::before {
+    border-top-color: #333;
+}
+
+/* *** FIX: Modern, thin scrollbar *** */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #f4f7f9;
+    border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+    background: #cdd7e1;
+    border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #b4bcc8;
+}

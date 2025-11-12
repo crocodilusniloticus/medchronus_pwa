@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com;
+        style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
+    ">
+    
+    <title>Residency Prep Hub</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
+    <link rel="stylesheet" href="styles.css">
+
+    <script src="https://unpkg.com/@popperjs/core@2"></script>
+    <script src="https://unpkg.com/tippy.js@6"></script>
+
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h2>Residency Prep Hub</h2>
+        </header>
+        
+        <div class="overview-grid">
+            <div class="dashboard-section">
+                <h2>Analytics Dashboard</h2>
+                <div class="charts-grid">
+                    <div class="chart-wrapper">
+                        <div class="chart-toggle-buttons">
+                            <button id="btn-pie-total" class="toggle-btn active">Total</button>
+                            <button id="btn-pie-today" class="toggle-btn">Today</button>
+                        </div>
+                        <div class="chart-container chart-clickable" id="time-chart"></div>
+                    </div>
+                    <div class="chart-container chart-clickable" id="score-chart"></div>
+                </div>
+            </div>
+            <div class="task-dashboard-section">
+                <h2>Upcoming Deadlines</h2>
+                <div id="task-list"></div>
+            </div>
+        </div>
+
+        <main>
+            <div class="calendar-section">
+                <div id="study-calendar"></div>
+                <p class="calendar-hint">Click a day to add an event.</p>
+            </div>
+            
+            <div class="timer-section">
+                <div class="input-group"><label for="courseSelect">Select Course:</label><select id="courseSelect"></select></div>
+                <div class="timer-display" id="timerDisplay">00:00:00</div>
+                <div class="timer-controls"><button id="startButton">Start</button><button id="stopButton" disabled>Stop & Log</button></div>
+                <div id="timerError" class="error-message"></div>
+                <div class="notes-container"><label for="sessionNotes">Session Notes:</label><textarea id="sessionNotes" placeholder="What did you cover?"></textarea></div>
+            </div>
+
+            <div class="score-section">
+                <div class="log-header-controls">
+                    <h2>Log a Score</h2>
+                    <button id="manage-courses-btn" class="show-all-btn">Manage Courses</button>
+                </div>
+                <div class="score-logger">
+                    <div class="input-group"><label for="scoreCourseSelect">Course:</label><select id="scoreCourseSelect"></select></div>
+                    <div class="input-group"><label for="scoreInput">Score (%):</label><input type="number" id="scoreInput" min="0" max="100" placeholder="e.g., 85"></div>
+                    <div class="input-group"><label for="scoreNotes">Notes (Optional):</label><textarea id="scoreNotes" placeholder="e.g., Mock Exam #2"></textarea></div>
+                    <div id="scoreError" class="error-message"></div>
+                    <button id="logScoreButton">Log Score</button>
+                </div>
+            </div>
+            
+            <div class="log-section">
+                <div class="log-header-controls"><h2>Daily Log</h2><button id="showAllButton" class="show-all-btn" hidden>Show All</button></div>
+                <div id="sessionLog" class="session-log-container"></div>
+            </div>
+        </main>
+    </div>
+
+    <div id="event-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 id="modal-title">Add Event</h2>
+            <div class="input-group"><label for="event-text">Event Title:</label><input type="text" id="event-text" placeholder="e.g., Final Mock Exam"></div>
+            <div class="input-group">
+                <label for="event-date-picker">Date:</label>
+                <input type="text" id="event-date-picker" placeholder="Select a date...">
+            </div>
+            <input type="hidden" id="event-timestamp">
+            <div id="eventError" class="error-message"></div>
+            <div class="modal-buttons"><button id="save-event-button">Save</button><button id="cancel-event-button" class="cancel-btn">Cancel</button></div>
+        </div>
+    </div>
+
+    <div id="confirm-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 id="modal-confirm-title">Are you sure?</h2>
+            <p id="modal-confirm-text">Are you sure you want to delete this item? This action cannot be undone.</p>
+            <input type="hidden" id="item-to-process">
+            <div class="modal-buttons">
+                <button id="confirm-delete-button" class="confirm-btn">Delete</button>
+                <button id="cancel-delete-button" class="cancel-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="edit-log-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 id="edit-modal-title">Edit Log Entry</h2>
+            <input type="hidden" id="edit-timestamp">
+            <div class="input-group">
+                <label for="edit-course-select">Course:</label>
+                <select id="edit-course-select"></select>
+            </div>
+            <div id="edit-session-group">
+                <div class="input-group">
+                    <label for="edit-duration">Duration (HH:MM:SS):</label>
+                    <input type="text" id="edit-duration">
+                </div>
+            </div>
+            <div id="edit-score-group">
+                <div class="input-group">
+                    <label for="edit-score">Score (%):</label>
+                    <input type="number" id="edit-score" min="0" max="100">
+                </div>
+            </div>
+            <div class="input-group">
+                <label for="edit-notes">Notes:</label>
+                <textarea id="edit-notes" rows="3"></textarea>
+            </div>
+            <div id="editError" class="error-message"></div>
+            <div class="modal-buttons">
+                <button id="save-edit-button">Save Changes</button>
+                <button id="cancel-edit-button" class="cancel-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="chart-modal" class="modal-overlay">
+        <div class="modal-content chart-modal-content">
+            <h2 id="zoomed-chart-title"></h2>
+            <div id="zoomed-chart-container"></div>
+            <div class="modal-buttons">
+                <button id="close-chart-modal-button" class="cancel-btn">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="courses-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2>Manage Courses</h2>
+            <div class="input-group">
+                <label for="new-course-name">Add New Course:</label>
+                <input type="text" id="new-course-name" placeholder="e.g., Anatomy">
+            </div>
+            <button id="add-course-btn" class="save-btn" style="width: 100%;">Add Course</button>
+            <hr style="margin: 20px 0;">
+            <h3>Current Courses</h3>
+            <div id="course-list-editor" class="course-list-container"></div>
+            <div class="modal-buttons">
+                <button id="close-courses-modal-btn" class="cancel-btn">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="./renderer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js" onload="initializeApp()"></script>
+</body>
+</html>

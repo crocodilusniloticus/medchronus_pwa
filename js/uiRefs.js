@@ -3,6 +3,7 @@ const refs = {
     timerDisplay: document.getElementById('timerDisplay'), 
     startButton: document.getElementById('startButton'), 
     stopButton: document.getElementById('stopButton'), 
+    resetButton: document.getElementById('resetButton'),
     sessionNotes: document.getElementById('sessionNotes'), 
     sessionLog: document.getElementById('sessionLog'), 
     showAllButton: document.getElementById('showAllButton'), 
@@ -112,8 +113,7 @@ const refs = {
     
     pomodoroPauseResumeBtn: document.getElementById('pomodoro-pause-resume-btn'),
     pomodoroStopBtn: document.getElementById('pomodoro-stop-btn'),
-    
-    // *** FIX: Ensure this line exists ***
+    pomodoroResetBtn: document.getElementById('pomodoro-reset-btn'),
     pomodoroSkipBtn: document.getElementById('pomodoro-skip-btn'),
 
     pomodoroNotes: document.getElementById('pomodoroNotes'),

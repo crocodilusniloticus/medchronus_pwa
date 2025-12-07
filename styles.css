@@ -345,6 +345,7 @@ span.flatpickr-weekday {
 .timer-display-container { text-align: center; margin: 5px 0; }
 .main-timer-text { font-size: 4rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-main); line-height: 1; letter-spacing: -2px; }
 .status-badge { display: inline-block; margin-top: 8px; padding: 6px 16px; border-radius: 20px; background: var(--primary-light); color: var(--primary); font-size: 0.9rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+.status-badge:empty { display: none; }
 .status-badge.break-mode { background-color: var(--success-bg); color: var(--success); }
 .countdown-inputs-row { display: flex; justify-content: center; gap: 12px; margin-bottom: 10px; }
 .time-input-wrapper { display: flex; flex-direction: column; align-items: center; }
@@ -803,6 +804,21 @@ body.focus-mode .timer-card { position: fixed; top: 0; left: 0; width: 100vw; he
 body.focus-mode .card-header h3 { display: none; }
 body.focus-mode .card-header { position: absolute; top: 20px; right: 20px; width: auto; margin: 0; }
 body.focus-mode .timer-body { width: 100%; max-width: 600px; }
+/* --- FIX: Make text visible against dark background --- */
+body.focus-mode .main-timer-text { 
+    color: var(--text-on-desk); 
+}
+
+body.focus-mode .time-input-wrapper label {
+    color: var(--text-on-desk);
+}
+
+body.focus-mode .mode-tab {
+    color: var(--text-muted); 
+}
+body.focus-mode .mode-tab.active {
+    color: var(--text-main); /* Keep active tab dark text on white bg */
+}
 body.focus-mode #btn-focus-mode { background: rgba(231, 76, 60, 0.2); color: #c0392b; border: 1px solid rgba(231, 76, 60, 0.3); padding: 8px 16px; width: auto; border-radius: 8px; font-weight: 600; display: flex; gap: 8px; }
 
 /* --- BREATHING ZEN MODE --- */

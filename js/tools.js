@@ -97,17 +97,13 @@ function setVolume(val) {
 /// --- BREATHING PACER LOGIC ---
 let breathingInterval;
 let currentVisualMode = 'orb'; // 'orb' or 'lotus'
-let breathStartTime = 0; // <--- ADD THIS LINE
+let breathStartTime = 0; 
 
 function generateLotus(container) {
-    // Clear Orb elements
-    container.innerHTML = '<div class="orb-layer orb-core"></div>'; // Keep core for center
-    
-    // Create 8 petals
+    container.innerHTML = '<div class="orb-layer orb-core"></div>'; 
     for(let i = 0; i < 8; i++) {
         const petal = document.createElement('div');
         petal.className = 'lotus-petal';
-        // IMPORTANT: The space after --r is critical in some browsers
         petal.style.setProperty('--r', (i * 45) + 'deg'); 
         container.appendChild(petal);
     }
@@ -122,7 +118,6 @@ function generateOrb(container) {
 }
 
 function toggleVisualMode(visualContainer, btn) {
-    // 1. Switch Internal State & HTML
     if (currentVisualMode === 'orb') {
         currentVisualMode = 'lotus';
         document.getElementById('breathing-card-container').classList.add('style-lotus');
@@ -135,16 +130,11 @@ function toggleVisualMode(visualContainer, btn) {
         btn.textContent = "Style: Orb";
     }
 
-    // 2. SYNC LOGIC: If breathing is active, sync new shape to current text time
     if (breathingInterval) {
         const elapsed = Date.now() - breathStartTime;
-        const cycleDuration = 16000; // 16 seconds (matches CSS)
+        const cycleDuration = 16000; 
         const currentOffset = elapsed % cycleDuration;
-
-        // Find the new animated elements (orb layers or lotus petals)
         const animatedElements = visualContainer.querySelectorAll('.orb-layer, .lotus-petal');
-        
-        // Force them to start 'currentOffset' milliseconds into the past
         animatedElements.forEach(el => {
             el.style.animationDelay = `-${currentOffset}ms`;
         });
@@ -167,11 +157,16 @@ function toggleBreathing(container, label) {
         container.classList.add('breathing-active');
         body.classList.add('breathing-mode'); 
         
-        breathStartTime = Date.now(); // <--- CHANGE THIS (Use global variable)
+        // --- FIX: Force Reset Animation Alignment ---
+        const animatedElements = document.querySelectorAll('.orb-layer, .lotus-petal');
+        animatedElements.forEach(el => el.style.animationDelay = '0s');
+        // --------------------------------------------
+
+        breathStartTime = Date.now(); 
         
         const updateText = () => {
             const cycleTime = 16000; 
-            const elapsed = (Date.now() - breathStartTime) % cycleTime; // <--- CHANGE THIS
+            const elapsed = (Date.now() - breathStartTime) % cycleTime; 
             
             if (elapsed < 4000) {
                 label.textContent = "Inhale...";
@@ -194,7 +189,6 @@ function toggleBreathing(container, label) {
 }
 
 function initToolsListeners() {
-    // ... (Keep existing Audio logic here) ...
     const btnBrown = document.getElementById('noise-brown');
     const btnPink = document.getElementById('noise-pink');
     const btnWhite = document.getElementById('noise-white');
@@ -214,9 +208,7 @@ function initToolsListeners() {
     if(btnWhite) btnWhite.addEventListener('click', () => handleNoiseClick('white'));
     if(btnStop) btnStop.addEventListener('click', () => { stopNoise(); updateBtns(); });
     if(volSlider) volSlider.addEventListener('input', (e) => setVolume(e.target.value));
-    // ... (End Audio Logic) ...
 
-    // --- New Breathing Logic ---
     const breathTrigger = document.getElementById('breathing-trigger');
     const breathLabel = document.getElementById('breathing-label');
     const visualContainer = document.getElementById('visual-container');
@@ -228,7 +220,7 @@ function initToolsListeners() {
 
     if(styleBtn && visualContainer) {
         styleBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent triggering the breathe toggle
+            e.stopPropagation(); 
             toggleVisualMode(visualContainer, styleBtn);
         });
     }

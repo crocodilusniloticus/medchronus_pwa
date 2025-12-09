@@ -60,6 +60,8 @@ If you want to contribute or build the app from source:
 ### Setup
 ```bash
 # Clone the repo
+
+![Downloads](https://img.shields.io/github/downloads/crocodilusniloticus/residency-prep-hub/total)
 git clone [https://github.com/crocodilusniloticus/residency-prep-hub.git](https://github.com/crocodilusniloticus/residency-prep-hub.git)
 
 # Install dependencies

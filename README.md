@@ -9,8 +9,7 @@ MedChronos is a specialized productivity tool designed to help medical professio
 ![License](https://img.shields.io/github/license/crocodilusniloticus/residency-prep-hub)
 ![Build Status](https://github.com/crocodilusniloticus/residency-prep-hub/actions/workflows/build.yml/badge.svg)
 
-=======
->>>>>>> 10b23d12f361049b3124ba3a04f643faa8c1d4c7
+
 ## ✨ Features
 
 ### ⏱️ Advanced Study Timers

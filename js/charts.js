@@ -7,6 +7,11 @@ function init(appState, uiRefs) {
     refs = uiRefs;
 }
 
+// --- NEW HELPER: Read CSS Variables ---
+function getCSSVal(variableName) {
+    return getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
+}
+
 function getCharts() {
     return {
         timeChart: state.timeChart,
@@ -85,16 +90,25 @@ function getTrendChartOptions() {
     const statValue = isHighDensity ? avgDaily30.toFixed(1) : avgDaily7.toFixed(1);
 
     let statusText = "Gathering Data...";
-    let statusColor = "#4a413a"; 
+    
+    // CSS VARIABLE LOOKUPS FOR STATUS
+    const colorNeutral = getCSSVal('--chart-status-neutral');
+    const colorDanger  = getCSSVal('--chart-status-danger');
+    const colorWarning = getCSSVal('--chart-status-warning');
+    const colorSuccess = getCSSVal('--chart-status-success');
+    const colorText    = getCSSVal('--chart-text');
+    const colorGrid    = getCSSVal('--chart-grid-line');
+    
+    let statusColor = colorNeutral; 
     let statusIcon = "○";
 
-    if (avgDaily7 < 1 ) { statusText = "Focus up!"; statusIcon = "⚡"; statusColor = "#cd5c5c"; } 
+    if (avgDaily7 < 1 ) { statusText = "Focus up!"; statusIcon = "⚡"; statusColor = colorDanger; } 
     else {
         const ratio = avgDaily30 > 0 ? (avgDaily7 / avgDaily30) : 2.0;
-        if (ratio >= 1.5) { statusText = "On Fire!"; statusColor = "#c68e17"; statusIcon = "🔥"; } 
-        else if (ratio >= 0.9) { statusText = "Consistent"; statusColor = "#66bb6a"; statusIcon = "✅"; } 
-        else if (ratio >= 0.5) { statusText = "Keep Pushing"; statusColor = "#546e7a"; statusIcon = "📈"; } 
-        else { statusText = "Focus up!"; statusColor = "#cd5c5c"; statusIcon = "⚠️"; }
+        if (ratio >= 1.5) { statusText = "On Fire!"; statusColor = colorWarning; statusIcon = "🔥"; } 
+        else if (ratio >= 0.9) { statusText = "Consistent"; statusColor = colorSuccess; statusIcon = "✅"; } 
+        else if (ratio >= 0.5) { statusText = "Keep Pushing"; statusColor = colorText; statusIcon = "📈"; } 
+        else { statusText = "Focus up!"; statusColor = colorDanger; statusIcon = "⚠️"; }
     }
 
     updateLeftChartHeader(`Study Trend (Last ${days} Days)`, true, {
@@ -102,12 +116,14 @@ function getTrendChartOptions() {
     });
 
     const getPerformanceStyle = (hours) => {
+        // You can also map these to CSS vars if you want strict adherence, 
+        // but simple hex logic is often faster for dynamic heatmaps.
         if (!hours || hours < 0.2) return { bg: '#e0e0e0', text: '#4a413a' }; 
         const ratio = hours / 2; 
-        if (ratio < 0.5) return { bg: '#78909c', text: '#fffaf0' }; 
-        if (ratio < 1.0) return { bg: '#66bb6a', text: '#fffaf0' }; 
-        if (ratio < 1.5) return { bg: '#c68e17', text: '#2c2c2c' }; 
-        return { bg: '#8b3a3a', text: '#fffaf0' }; 
+        if (ratio < 0.5) return { bg: '#cfd8dc', text: '#455a64' }; 
+        if (ratio < 1.0) return { bg: '#a5d6a7', text: '#1b5e20' }; 
+        if (ratio < 1.5) return { bg: '#fff59d', text: '#f57f17' }; 
+        return { bg: '#ef9a9a', text: '#b71c1c' }; 
     };
 
     const endDate = new Date();
@@ -139,7 +155,15 @@ function getTrendChartOptions() {
         };
     });
 
-    const palette = ['#546e7a', '#c68e17', '#8b3a3a', '#9e9e9e', '#66bb6a', '#795548', '#cd5c5c'];
+    // LOAD PALETTE FROM CSS
+    const palette = [
+        getCSSVal('--chart-c1'),
+        getCSSVal('--chart-c2'),
+        getCSSVal('--chart-c3'),
+        getCSSVal('--chart-c4'),
+        getCSSVal('--chart-c5'),
+        getCSSVal('--chart-c6')
+    ];
 
     const series = activeCourses.map((course, index) => {
         const data = dates.map(date => ((dataMap[date][course] || 0) / 3600).toFixed(2));
@@ -163,14 +187,12 @@ function getTrendChartOptions() {
     return {
         tooltip: { 
             trigger: 'axis', axisPointer: { type: 'shadow' },
-            backgroundColor: 'rgba(255, 255, 255, 0.95)', borderColor: '#e0e0e0',
-            textStyle: { color: '#4a413a', fontWeight: '600' },
+            backgroundColor: getCSSVal('--chart-tooltip-bg'), 
+            borderColor: colorGrid,
+            textStyle: { color: colorText, fontWeight: '600' },
             formatter: function (params) {
-                // --- PERSIAN HEADER IN TOOLTIP ---
-                // params[0].name is the X-Axis label (Gregorian ISO). Convert to Persian.
                 const pDate = getPersianDateString(new Date(params[0].name));
-                let tooltipHtml = `<div style="margin-bottom:4px; border-bottom:1px solid #e0e0e0; padding-bottom:4px;">${pDate}</div>`;
-                // ---------------------------------
+                let tooltipHtml = `<div style="margin-bottom:4px; border-bottom:1px solid ${colorGrid}; padding-bottom:4px;">${pDate}</div>`;
                 let hasData = false;
                 params.forEach(item => {
                     if (item.seriesName !== 'Total Daily' && parseFloat(item.value) > 0) {
@@ -183,22 +205,20 @@ function getTrendChartOptions() {
                 return tooltipHtml;
             }
         },
-        legend: { type: 'scroll', bottom: 0, textStyle: { color: '#4a413a' }, data: activeCourses },
+        legend: { type: 'scroll', bottom: 0, textStyle: { color: colorText }, data: activeCourses },
         grid: { left: '2%', right: '3%', bottom: '12%', top: '10%', containLabel: true },
         xAxis: { 
             type: 'category', 
             data: dates, 
-            axisLine: { lineStyle: { color: '#e0e0e0' } }, 
+            axisLine: { lineStyle: { color: colorGrid } }, 
             axisLabel: { 
-                color: '#4a413a',
-                // --- PERSIAN LABELS ON X-AXIS ---
+                color: colorText,
                 formatter: function(value) {
                     return getPersianDateString(new Date(value));
                 }
-                // --------------------------------
             } 
         },
-        yAxis: { type: 'value', splitLine: { lineStyle: { color: '#e0e0e0', type: 'dashed' } }, axisLabel: { color: '#4a413a' } },
+        yAxis: { type: 'value', splitLine: { lineStyle: { color: colorGrid, type: 'dashed' } }, axisLabel: { color: colorText } },
         series: series
     };
 }
@@ -225,15 +245,26 @@ function getTimeChartOptions(modeOverride) {
 
     const chartData = Object.keys(courseData).map(course => ({ name: course, value: (courseData[course] / 3600) }));
     
-    const piePalette = ['#8b3a3a', '#c68e17', '#546e7a', '#66bb6a', '#cd5c5c', '#8d6e63'];
+    // LOAD PALETTE FROM CSS
+    const piePalette = [
+        getCSSVal('--chart-c1'),
+        getCSSVal('--chart-c2'),
+        getCSSVal('--chart-c3'),
+        getCSSVal('--chart-c4'),
+        getCSSVal('--chart-c5'),
+        getCSSVal('--chart-c6')
+    ];
+
+    const colorText = getCSSVal('--chart-text');
+    const colorGrid = getCSSVal('--chart-grid-line');
 
     return {
         color: piePalette,
         tooltip: { 
             trigger: 'item', 
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            borderColor: '#e0e0e0',
-            textStyle: { color: '#4a413a' },
+            backgroundColor: getCSSVal('--chart-tooltip-bg'),
+            borderColor: colorGrid,
+            textStyle: { color: colorText },
             formatter: (p) => {
                 const colorDot = `<span style="display:inline-block;margin-right:5px;border-radius:50%;width:10px;height:10px;background-color:${p.color};"></span>`;
                 return `${colorDot} <b>${p.name}</b><br/>${parseFloat(p.value).toFixed(2)}h (${p.percent}%)`;
@@ -245,9 +276,9 @@ function getTimeChartOptions(modeOverride) {
             right: 0,
             top: 'middle',
             height: '90%',
-            textStyle: { color: '#4a413a', fontWeight: 'bold' },
-            pageIconColor: '#8b3a3a',
-            pageTextStyle: { color: '#4a413a' }
+            textStyle: { color: colorText, fontWeight: 'bold' },
+            pageIconColor: getCSSVal('--chart-c1'),
+            pageTextStyle: { color: colorText }
         },
         series: [{ 
             type: 'pie', 
@@ -255,7 +286,7 @@ function getTimeChartOptions(modeOverride) {
             center: ['42%', '50%'], 
             data: chartData, 
             label: { show: false },
-            itemStyle: { borderColor: '#fffaf0', borderWidth: 3 },
+            itemStyle: { borderColor: '#ffffff', borderWidth: 3 },
             emphasis: { scale: true, scaleSize: 5 }
         }]
     };
@@ -298,44 +329,49 @@ function getScoreChartOptions() {
         smooth: true, symbol: 'circle', symbolSize: 6, lineStyle: { width: 3 }
     }));
     
-    const scorePalette = ['#cd5c5c', '#546e7a', '#8b3a3a', '#66bb6a', '#c68e17'];
+    // LOAD PALETTE FROM CSS
+    const scorePalette = [
+        getCSSVal('--chart-c2'),
+        getCSSVal('--chart-c4'),
+        getCSSVal('--chart-c6'),
+        getCSSVal('--chart-c3'),
+        getCSSVal('--chart-c5')
+    ];
+
+    const colorText = getCSSVal('--chart-text');
+    const colorGrid = getCSSVal('--chart-grid-line');
 
     return {
         color: scorePalette,
         tooltip: { 
             trigger: 'axis',
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            borderColor: '#e0e0e0',
-            textStyle: { color: '#4a413a' },
-            // --- PERSIAN TOOLTIP FOR SCORE CHART ---
+            backgroundColor: getCSSVal('--chart-tooltip-bg'),
+            borderColor: colorGrid,
+            textStyle: { color: colorText },
             formatter: function(params) {
-                // params[0].axisValue is the time. 
                 const date = new Date(params[0].axisValue);
                 const pDate = getPersianDateString(date);
-                let html = `<div style="margin-bottom:4px; border-bottom:1px solid #e0e0e0; padding-bottom:4px;">${pDate}</div>`;
+                let html = `<div style="margin-bottom:4px; border-bottom:1px solid ${colorGrid}; padding-bottom:4px;">${pDate}</div>`;
                 params.forEach(item => {
                     const colorDot = `<span style="display:inline-block;margin-right:5px;border-radius:50%;width:10px;height:10px;background-color:${item.color};"></span>`;
                     html += `<div style="display:flex; justify-content:space-between; gap:15px; margin-top:4px;"><span>${colorDot} ${item.seriesName}</span><span style="font-weight:bold">${item.value[1]}%</span></div>`;
                 });
                 return html;
             }
-            // ---------------------------------------
         },
-        legend: { type: 'scroll', bottom: '0', textStyle: { color: '#4a413a' } },
+        legend: { type: 'scroll', bottom: '0', textStyle: { color: colorText } },
         grid: { left: '10%', right: '10%', top: '10%', bottom: '28%' },
         xAxis: { 
             type: 'time', 
             axisLabel: { 
-                color: '#4a413a',
-                // --- PERSIAN AXIS LABELS ---
+                color: colorText,
                 formatter: function(value) {
                     return getPersianDateString(new Date(value));
                 }
-                // ---------------------------
             }, 
             splitLine: { show: false } 
         },
-        yAxis: { type: 'value', min: 0, max: 100, axisLabel: { color: '#4a413a' }, splitLine: { lineStyle: { color: '#e0e0e0', type: 'dashed' } } },
+        yAxis: { type: 'value', min: 0, max: 100, axisLabel: { color: colorText }, splitLine: { lineStyle: { color: colorGrid, type: 'dashed' } } },
         
         dataZoom: [{ 
             type: 'slider',
@@ -347,19 +383,19 @@ function getScoreChartOptions() {
             showDataShadow: false, 
             moveHandleSize: 0,     
             borderColor: 'transparent', 
-            backgroundColor: '#e0e0e0',  
-            fillerColor: '#8b3a3a',      
+            backgroundColor: getCSSVal('--c-grey-neutral-bg'),  
+            fillerColor: getCSSVal('--chart-c1'),     
             borderRadius: 4,             
             handleIcon: 'path://M512 512m-208 0a208 208 0 1 0 416 0 208 208 0 1 0-416 0Z', 
             handleSize: '200%', 
             handleStyle: {
-                color: '#fffaf0',      
-                borderColor: '#8b3a3a', 
+                color: '#ffffff',      
+                borderColor: getCSSVal('--chart-c1'), 
                 borderWidth: 2,
                 shadowBlur: 3,
-                shadowColor: 'rgba(0, 0, 0, 0.2)'
+                shadowColor: 'rgba(0, 0, 0, 0.1)'
             },
-            textStyle: { color: '#4a413a' } 
+            textStyle: { color: colorText } 
         }],
         series: series
     };

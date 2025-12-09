@@ -1,6 +1,6 @@
 {
   "name": "medchronos",
-  "version": "1.0.2",
+  "version": "1.0.205",
   "description": "A study tracker for medical exams.",
   "main": "main.js",
   "repository": {
@@ -17,6 +17,19 @@
   "build": {
     "appId": "com.medchronos.app",
     "productName": "MedChronos",
+    "files": [
+      "**/*",
+      "!**/*.ts",
+      "!*.map",
+      "!*.log",
+      "!*.md",
+      "!dist",
+      "!out",
+      "!repomix-output.xml",
+      "!forge.config.js",
+      "!.gitignore",
+      "!.git"
+    ],
     "win": {
       "target": [
         "nsis"
@@ -46,7 +59,6 @@
     "flatpickr-jalali-support": "^1.0.3",
     "jdate": "^0.0.2",
     "luxon": "^3.7.2",
-    "matplotlib": "^1.0.0",
     "tippy.js": "^6.3.7"
   },
   "devDependencies": {

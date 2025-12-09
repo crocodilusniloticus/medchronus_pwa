@@ -3,6 +3,9 @@ const path = require('path');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
+try {
+  require('electron-reloader')(module);
+} catch (_) {}
 
 // 1. Configure Logging for Updates
 log.transports.file.level = 'info';
@@ -99,7 +102,7 @@ async function handleFileOpen() {
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
-    width: 1720, height: 1300, minWidth: 800, minHeight: 600,
+    width: 1720, height: 1200, minWidth: 800, minHeight: 600,
     icon: path.join(__dirname, 'icon.ico'),
     show: false,
     backgroundColor: '#f4f7f9',

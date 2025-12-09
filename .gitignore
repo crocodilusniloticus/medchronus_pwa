@@ -1,5 +1,15 @@
-# Node.js dependencies
+# Dependencies
 node_modules/
 
-# Compiled app files
-out/ 
+# Build Output
+dist/
+
+# Security (CRITICAL)
+token.txt
+.env
+
+# Junk/Temporary files
+repomix-output.xml
+gtp ideas.txt
+styles_additional.txt
+Gemini_Generated_Image_*.png

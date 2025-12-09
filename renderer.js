@@ -59,6 +59,7 @@ function initializeApp() {
             charts.updateScoreChart(); 
             views.updateTaskDashboard(); 
             views.updateCourseEditorList();
+            views.updateStreakDisplay();
             if(timers && timers.updatePomodoroDisplay) timers.updatePomodoroDisplay();
         };
 

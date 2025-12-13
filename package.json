@@ -1,6 +1,6 @@
 {
   "name": "medchronos",
-  "version": "1.0.205",
+  "version": "1.1.0",
   "description": "A study tracker for medical exams.",
   "main": "main.js",
   "repository": {
@@ -16,6 +16,9 @@
   "license": "ISC",
   "build": {
     "appId": "com.medchronos.app",
+      "extraResources": [
+    "credentials.json"
+  ],
     "productName": "MedChronos",
     "files": [
       "**/*",
@@ -39,6 +42,7 @@
         "github"
       ]
     },
+    
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
@@ -51,12 +55,14 @@
     }
   },
   "dependencies": {
+    "@google-cloud/local-auth": "^3.0.1",
     "@popperjs/core": "^2.11.8",
     "echarts": "^6.0.0",
     "electron-log": "^5.0.0",
     "electron-updater": "^6.1.0",
     "flatpickr": "^4.6.13",
     "flatpickr-jalali-support": "^1.0.3",
+    "googleapis": "^168.0.0",
     "jdate": "^0.0.2",
     "luxon": "^3.7.2",
     "tippy.js": "^6.3.7"

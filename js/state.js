@@ -48,6 +48,9 @@ let streakTarget = 7;
 let streakMinMinutes = 15; 
 let isFocusMode = false;
 
+let heatmapTargetHours = 8;    // Default: 8 hours for solid ink
+let heatmapOverdriveHours = 10; // Default: 10 hours for gold border
+
 let deadlineUrgencyDays = 60;
 
 let calendarCurrentMonth = null;
@@ -59,7 +62,7 @@ module.exports = {
     stopwatchSeconds, stopwatchStartTime, isStopwatchRunning, isStopwatchPaused,
     pomodoroState, pomodoroSecondsLeft, pomodoroCycle, isPomodoroPaused, pomodoroPausedTime, pomodoroOriginalDuration, pomodoroStartTime, nextPomodoroPhase,
     pomodoroFocusDuration, pomodoroShortBreakDuration, pomodoroLongBreakDuration, 
-    countdownSecondsLeft, isCountdownRunning, isCountdownPaused, countdownPausedTime, countdownStartTime,
+    countdownSecondsLeft, heatmapTargetHours, heatmapOverdriveHours, isCountdownRunning, isCountdownPaused, countdownPausedTime, countdownStartTime,
     isSavingEvent, zoomedTimeChart, zoomedScoreChart, eventModalPicker,
     pieChartMode, trendChartSpan, logViewMode, showCompletedTasks,
     streakCount, streakTarget, streakMinMinutes, isFocusMode,

@@ -3,6 +3,12 @@ const path = require('path');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
+
+// --- ADD THIS BLOCK ---
+// This ensures the Google Sync script knows where to write the token
+process.env.APPDATA_PATH = app.getPath('userData');
+// ----------------------
+
 try {
   require('electron-reloader')(module);
 } catch (_) {}
@@ -99,7 +105,41 @@ async function handleFileOpen() {
     });
     if (!canceled) return filePaths[0];
 }
+const googleSync = require('./js/googleSync');
 
+// Handle the Sync Signal from the UI
+ipcMain.handle('google-calendar-sync', async (event, localEvents) => {
+    try {
+        const stats = await googleSync.pushEventsToGoogle(localEvents);
+        return { success: true, stats: stats };
+    } catch (error) {
+        console.error("Sync Error:", error);
+        return { success: false, error: error.message };
+    }
+});
+ipcMain.handle('google-calendar-delete-one', async (event, googleId) => {
+    try {
+        await googleSync.deleteSingleEvent(googleId);
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+ipcMain.handle('google-auth-logout', async () => {
+    try {
+        // Use the same safe path logic
+        const userDataPath = app.getPath('userData');
+        const tokenPath = path.join(userDataPath, 'token.json');
+        
+        if (fs.existsSync(tokenPath)) {
+            await fs.promises.unlink(tokenPath);
+        }
+        return { success: true };
+    } catch (error) {
+        console.error("Logout failed:", error);
+        return { success: false, error: error.message };
+    }
+});
 function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1720, height: 1200, minWidth: 800, minHeight: 600,

@@ -2,19 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <!-- Security Policy allows local scripts and styles -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://type.fit https://dummyjson.com https://raw.githubusercontent.com; img-src 'self' data:; media-src 'self' file:;">
     <title>MedChronos</title>
     
-    <!-- CSS Dependencies -->
-    <!-- 1. Standard Flatpickr Styles -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <!-- 2. Airbnb Theme (cleaner look) -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/airbnb.css">
-    <!-- 3. Your App Styles -->
+    <link rel="stylesheet" href="css/flatpickr.min.css">
+    <link rel="stylesheet" href="css/airbnb.css">
     <link rel="stylesheet" href="styles.css">
     
-    <!-- CSS Override for Persian Direction -->
     <style>
         .flatpickr-calendar { font-family: 'Inter', sans-serif; direction: rtl; }
         .flatpickr-month { direction: ltr; } /* Keeps arrows correct */
@@ -22,7 +16,6 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- HEADER -->
         <header class="app-header">
             <div class="header-brand">
                 <div class="logo-icon">⚕️</div>
@@ -37,17 +30,26 @@
                     </div>
                 </div>
             </div>
-            <div class="header-actions">
+<div class="header-actions">
+                <!-- NEW: Status Text -->
+                <span id="sync-status" style="font-size: 0.8rem; font-weight: 600; color: var(--primary); margin-right: 10px; opacity: 0; transition: opacity 0.5s;"></span>
+
+                <button id="sync-btn" class="icon-btn" aria-label="Sync Google Calendar" data-tooltip="Sync to Google Cal">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16"></path><path d="M3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M10 12h4"></path></svg>
+                </button>
+                
+                <button id="help-btn" class="icon-btn" aria-label="Help" data-tooltip="User Manual">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                </button>
+
                 <button id="global-settings-btn" class="icon-btn" aria-label="Settings" data-tooltip="Settings">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                 </button>
             </div>
         </header>
 
-        <!-- MAIN GRID -->
         <div class="dashboard-grid">
             
-            <!-- 1. STUDY CARD -->
             <section class="card study-card">
                 <div class="card-header">
                     <h3>Study Trend</h3>
@@ -80,7 +82,6 @@
                 </div>
             </section>
 
-            <!-- 2. PERFORMANCE CARD -->
             <section class="card performance-card">
                 <div class="card-header">
                     <h3>Performance</h3>
@@ -92,7 +93,6 @@
                 </div>
             </section>
 
-            <!-- 3. TASKS CARD -->
             <section class="card tasks-card">
                 <div class="card-header">
                     <h3>Deadlines</h3>
@@ -101,7 +101,6 @@
                 <div id="task-list" class="custom-scrollbar"></div>
             </section>
 
-            <!-- 4. LEFT STACK -->
             <div class="left-stack">
                 <section class="card calendar-card">
                     <div class="card-header compact-header">
@@ -123,7 +122,6 @@
                 </section>
             </div>
 
-            <!-- 5. TIMER CARD -->
             <section class="card timer-card">
                 <div class="card-header">
                     <h3>Active Session</h3>
@@ -138,7 +136,6 @@
                 </div>
                 <div class="timer-body">
                     <div id="quote-container" class="quote-container"></div>
-                    <!-- Stopwatch -->
                     <div id="stopwatch-panel" class="timer-panel">
                         <div class="input-group"><select id="courseSelect" class="modern-select large-text"></select></div>
                         <div class="timer-display-container"><div id="timerDisplay" class="main-timer-text">00:00:00</div></div>
@@ -151,7 +148,6 @@
                         <textarea id="sessionNotes" class="modern-textarea" placeholder="Session notes..."></textarea>
                     </div>
                     
-                    <!-- Pomodoro -->
                     <div id="pomodoro-panel" class="timer-panel hidden">
                         <div class="input-group"><select id="pomodoroCourseSelect" class="modern-select large-text"></select></div>
                         <div class="timer-display-container">
@@ -171,7 +167,6 @@
                         <textarea id="pomodoroNotes" class="modern-textarea" placeholder="Session notes..."></textarea>
                     </div>
 
-                    <!-- Countdown -->
                     <div id="countdown-panel" class="timer-panel hidden">
                         <div class="input-group"><select id="countdownCourseSelect" class="modern-select large-text"></select></div>
                         <div class="timer-display-container"><div id="countdownTimerDisplay" class="main-timer-text">00:00:00</div></div>
@@ -191,7 +186,6 @@
                 </div>
             </section>
 
-            <!-- 6. TOOLS STACK -->
             <div class="tools-stack">
                 <section class="card sound-card">
                     <div class="card-header compact-header" style="width:100%; position: absolute; top: 15px; left: 0; padding: 0 20px;">
@@ -230,7 +224,6 @@
                 </section>
             </div>
 
-            <!-- 7. LOG CARD -->
             <section class="card log-card">
                 <div class="card-header">
                     <h3>History</h3>
@@ -247,8 +240,7 @@
         </div>
     </div>
 
-    <!-- MODALS -->
-    <!-- Event/Deadline Modal -->
+<!-- Event/Deadline Modal -->
     <div id="event-modal" class="modal-overlay">
         <div class="modal-content">
             <h2 id="modal-title">Add Deadline</h2>
@@ -256,10 +248,23 @@
                 <label>Title</label>
                 <input type="text" id="event-text" class="modern-input" placeholder="e.g. Nephro Exam">
             </div>
-            <div class="input-group">
-                <label>Due Date</label>
-                <input type="text" id="event-date-picker" class="modern-input" placeholder="Required">
+            
+            <!-- Priority and Date Grid -->
+            <div class="form-grid">
+                <div class="input-group">
+                    <label>Due Date</label>
+                    <input type="text" id="event-date-picker" class="modern-input" placeholder="Required">
+                </div>
+                <div class="input-group">
+                    <label>Priority</label>
+                    <select id="event-priority" class="modern-select">
+                        <option value="low">Low (Blue)</option>
+                        <option value="medium">Medium (Orange)</option>
+                        <option value="high">High (Red)</option>
+                    </select>
+                </div>
             </div>
+
             <input type="hidden" id="event-timestamp">
             <div id="eventError" class="error-message"></div>
             <div class="modal-footer">
@@ -269,13 +274,14 @@
         </div>
     </div>
 
-    <!-- Settings Modal -->
     <div id="settings-modal" class="modal-overlay">
         <div class="modal-content">
             <h2>Settings</h2>
+            
             <div class="settings-section" style="margin-bottom:15px;">
                 <button id="manage-courses-from-settings-btn" class="btn btn-outline" style="width:100%">Manage Courses</button>
             </div>
+            
             <div class="settings-section" style="margin-bottom:15px;">
                 <label>Alarm</label>
                 <div style="display:flex; gap:10px;">
@@ -285,11 +291,23 @@
                 <span id="selected-alarm-file" style="font-size:0.8rem; color:var(--text-muted); display:block; margin-top:5px;">Default</span>
                 <input type="hidden" id="alarm-sound-input">
             </div>
-            <div class="settings-section form-grid">
-                <div class="input-group"><label>Streak Goal (Days)</label><input type="number" id="streak-target-input" class="modern-input"></div>
-                <div class="input-group"><label>Min Time (Mins)</label><input type="number" id="streak-min-time-input" class="modern-input"></div>
-                <div class="input-group" style="grid-column: 1 / -1;"><label>Deadline Lookahead (Days)</label><input type="number" id="deadline-urgency-input" class="modern-input" min="1" max="365"></div>
+            <div class="settings-section" style="border-top: 1px solid var(--border); padding-top: 15px;">
+                <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="input-group">
+                        <label style="font-size: 0.9rem; font-weight:600;">Daily Goal (Hours)</label>
+                        <input type="number" id="setting-heatmap-target" class="modern-input" placeholder="8">
+                    </div>
+                    <div class="input-group">
+                        <label style="font-size: 0.9rem; font-weight:600;">Deadline Lookahead (Days)</label>
+                        <input type="number" id="deadline-urgency-input" class="modern-input" min="1" max="365">
+                    </div>
+                </div>
+            
+            <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 8px;">
+                    * Streak increments only when Daily Goal is met.
+                </p>
             </div>
+
             <div class="settings-section" style="margin-top:15px; border-top: 1px solid var(--border); padding-top: 15px;">
                 <label style="margin-bottom: 8px; display: block; font-weight: 600; color: var(--text-main);">Pomodoro Timings (Mins)</label>
                 <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;">
@@ -298,6 +316,7 @@
                     <div class="input-group"><label style="font-size: 0.75rem;">Long Brk</label><input type="number" id="setting-long-break-duration" class="modern-input"></div>
                 </div>
             </div>
+
             <div class="settings-section" style="margin-top:15px; border-top: 1px solid var(--border); padding-top: 15px;">
                 <label>Backup</label>
                 <div style="display:flex; gap:10px;">
@@ -306,6 +325,11 @@
                 </div>
                 <input type="file" id="import-file-input" style="display:none" accept=".json">
             </div>
+            <div class="settings-section" style="margin-top:15px; border-top: 1px solid var(--border); padding-top: 15px;">
+                <label>Account</label>
+                <button id="google-logout-btn" class="btn btn-danger" style="width: 100%;">Disconnect Google Account</button>
+            </div>
+
             <div class="modal-footer">
                 <button id="close-settings-modal-btn" class="btn btn-ghost">Cancel</button>
                 <button id="save-settings-btn" class="btn btn-primary">Save Changes</button>
@@ -313,7 +337,6 @@
         </div>
     </div>
 
-    <!-- Pomodoro Complete Modal -->
     <div id="pomodoro-prompt-modal" class="modal-overlay">
         <div class="modal-content" style="text-align: center;">
             <h2 id="pomodoro-prompt-title" style="border:none; margin-bottom: 10px;">Phase Complete!</h2>
@@ -325,7 +348,6 @@
         </div>
     </div>
 
-    <!-- Confirmation Modal -->
     <div id="confirm-modal" class="modal-overlay">
         <div class="modal-content">
             <h2 id="modal-confirm-title">Confirm</h2>
@@ -338,7 +360,6 @@
         </div>
     </div>
 
-    <!-- Edit Log Modal -->
     <div id="edit-log-modal" class="modal-overlay">
         <div class="modal-content">
             <h2 id="edit-modal-title">Edit Entry</h2>
@@ -358,7 +379,6 @@
         </div>
     </div>
 
-    <!-- Chart Zoom Modal -->
     <div id="chart-modal" class="modal-overlay">
         <div class="modal-content chart-modal-content">
             <h2 id="zoomed-chart-title"></h2>
@@ -369,7 +389,6 @@
         </div>
     </div>
 
-    <!-- Courses Management Modal -->
     <div id="courses-modal" class="modal-overlay">
         <div class="modal-content">
             <h2>Manage Courses</h2>
@@ -385,9 +404,17 @@
         </div>
     </div>
 
+    <div id="help-modal" class="modal-overlay">
+        <div class="modal-content help-modal-content">
+            <h2>User Guide</h2>
+            <div id="manual-container" class="manual-container custom-scrollbar"></div>
+            <div class="modal-footer">
+                <button id="close-help-modal-btn" class="btn btn-primary">Got it</button>
+            </div>
+        </div>
+    </div>
     <audio id="alarm-sound"></audio>
     
-    <!-- IMPORTANT: Only local script loaded -->
     <script src="./renderer.js"></script>
 </body>
 </html>

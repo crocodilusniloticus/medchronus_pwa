@@ -1,16 +1,22 @@
-# Dependencies
+# --- Dependencies ---
 node_modules/
 
-# Build Output
+# --- Build Output (Executables & Installers) ---
 dist/
+out/
+build/
 
-# Security (CRITICAL)
-token.txt
+# --- Secrets (CRITICAL: Never commit these) ---
+credentials.json
+token.json
 .env
 
-# Junk/Temporary files
+# --- Logs & Temporary Files ---
+*.log
+npm-debug.log
 repomix-output.xml
-gtp ideas.txt
-styles_additional.txt
-Gemini_Generated_Image_*.png
-.gitignore.txt
+others/
+
+# --- System Files ---
+.DS_Store
+Thumbs.db

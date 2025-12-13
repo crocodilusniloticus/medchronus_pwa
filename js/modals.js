@@ -30,14 +30,30 @@ function showEventModal(date, timestamp = null) {
         refs.modalTitle.textContent = 'Edit Deadline';
         refs.eventText.value = event.title;
         refs.eventTimestamp.value = event.timestamp;
+        
+        // Load priority
+        if(refs.eventPriority) {
+            refs.eventPriority.value = event.priority || 'low';
+        }
+        
         state.eventModalPicker.setDate(event.date);
     } else {
         refs.modalTitle.textContent = `Add Deadline`; 
         refs.eventText.value = ''; 
         refs.eventTimestamp.value = '';
+        
+        // Reset priority
+        if(refs.eventPriority) {
+            refs.eventPriority.value = 'low';
+        }
+        
         state.eventModalPicker.setDate(date || new Date());
     }
-    refs.eventModal.style.display = 'flex'; 
+    
+    // This implies refs.eventModal must exist
+    if(refs.eventModal) {
+        refs.eventModal.style.display = 'flex'; 
+    }
     refs.eventText.focus(); 
 }
 
@@ -47,6 +63,7 @@ function saveEvent() {
     const title = refs.eventText.value.trim();
     const date = refs.eventDatePicker.value; 
     const ts = refs.eventTimestamp.value;
+    const priority = refs.eventPriority.value; // Get Priority
 
     if (!title) { refs.eventError.textContent = 'Event title cannot be empty.'; return; }
     if (!date) { refs.eventError.textContent = 'Please select a due date.'; return; }
@@ -56,12 +73,14 @@ function saveEvent() {
         if (eventIndex > -1) {
             state.allEvents[eventIndex].title = title;
             state.allEvents[eventIndex].date = date;
+            state.allEvents[eventIndex].priority = priority; // Update Priority
         }
     } else {
         state.allEvents.push({ 
             type: 'event', 
             title: title, 
             date: date, 
+            priority: priority, // Save Priority
             timestamp: new Date().toISOString(), 
             isDone: false 
         });
@@ -139,10 +158,12 @@ function addCourse() { const name = refs.newCourseName.value.trim(); if (name &&
 function deleteCourse(courseName) { state.allCourses = state.allCourses.filter(c => c !== courseName); dataManager.saveData(); updateAllDisplays(); }
 
 function showSettingsModal() { 
-    refs.settingsModal.style.display = 'flex'; 
-    refs.streakTargetInput.value = state.streakTarget; 
-    refs.streakMinTimeInput.value = state.streakMinMinutes;
+    if(refs.settingsModal) refs.settingsModal.style.display = 'flex'; 
+    
     if(refs.deadlineUrgencyInput) refs.deadlineUrgencyInput.value = state.deadlineUrgencyDays;
+
+    // RESTORE THIS
+    if(refs.settingHeatmapTarget) refs.settingHeatmapTarget.value = state.heatmapTargetHours;
 
     if(refs.settingFocusDuration) refs.settingFocusDuration.value = state.pomodoroFocusDuration || 50;
     if(refs.settingShortBreakDuration) refs.settingShortBreakDuration.value = state.pomodoroShortBreakDuration || 10;
@@ -153,11 +174,20 @@ function hideSettingsModal() { refs.settingsModal.style.display = 'none'; }
 
 function saveSettings() {
     const newSoundPath = refs.alarmSoundInput.value;
-    if(newSoundPath) { refs.alarmSound.src = 'file://' + newSoundPath; localStorage.setItem('alarmSound', newSoundPath); refs.selectedAlarmFile.textContent = newSoundPath.split('\\').pop().split('/').pop(); }
+    if(newSoundPath) { 
+        refs.alarmSound.src = 'file://' + newSoundPath; 
+        localStorage.setItem('alarmSound', newSoundPath); 
+        refs.selectedAlarmFile.textContent = newSoundPath.split('\\').pop().split('/').pop(); 
+    }
     
-    const target = parseInt(refs.streakTargetInput.value); if (target && target > 0) state.streakTarget = target;
-    const minTime = parseInt(refs.streakMinTimeInput.value); if (minTime && minTime >= 0) state.streakMinMinutes = minTime;
-    const urgency = parseInt(refs.deadlineUrgencyInput.value); if(urgency && urgency > 0) state.deadlineUrgencyDays = urgency;
+    const urgency = parseInt(refs.deadlineUrgencyInput.value); 
+    if(urgency && urgency > 0) state.deadlineUrgencyDays = urgency;
+
+    // RESTORE THIS
+    if(refs.settingHeatmapTarget) {
+        const val = parseFloat(refs.settingHeatmapTarget.value);
+        if(val > 0) state.heatmapTargetHours = val;
+    }
 
     if(refs.settingFocusDuration) {
         const val = parseInt(refs.settingFocusDuration.value);
@@ -172,7 +202,9 @@ function saveSettings() {
         if(val > 0) state.pomodoroLongBreakDuration = val;
     }
 
-    dataManager.saveData(); updateAllDisplays(); hideSettingsModal();
+    dataManager.saveData(); 
+    updateAllDisplays(); 
+    hideSettingsModal();
 }
 
 function maximizeSystemVolume() { try { if (process.platform === 'darwin') { exec('osascript -e "set volume output volume 100"'); } else if (process.platform === 'win32') { const cmd = `powershell -WindowStyle Hidden -Command "$w=New-Object -ComObject WScript.Shell;for($i=0;$i-lt 50;$i++){$w.SendKeys([char]175)}"`; exec(cmd); } else if (process.platform === 'linux') { exec('amixer sset Master 100% || amixer -D pulse sset Master 100%'); } } catch (e) { console.error("Could not set system volume:", e); } }
@@ -343,10 +375,30 @@ function showChartModal(type) {
 
 function hideChartModal() { refs.chartModal.style.display = 'none'; }
 
+function showHelpModal() {
+    refs.helpModal.style.display = 'flex';
+}
+
+function hideHelpModal() {
+    refs.helpModal.style.display = 'none';
+}
+
+function showSyncOnboarding() {
+    if(refs.syncOnboardingModal) {
+        refs.syncOnboardingModal.style.display = 'flex';
+    }
+}
+
+function hideSyncOnboarding() {
+    if(refs.syncOnboardingModal) {
+        refs.syncOnboardingModal.style.display = 'none';
+    }
+}
 module.exports = {
     init, showEventModal, hideEventModal, saveEvent, showConfirmModal, hideConfirmModal,
     showEditModal, hideEditModal, saveEdit, showCoursesModal, hideCoursesModal, addCourse, deleteCourse,
     showSettingsModal, hideSettingsModal, saveSettings, testAlarm, selectAlarmFile,
     showChartModal, hideChartModal, playAlarm,
-    showPomodoroPrompt, hidePomodoroPrompt
+    showPomodoroPrompt, hidePomodoroPrompt, showHelpModal, hideHelpModal, showSyncOnboarding, 
+    hideSyncOnboarding
 };

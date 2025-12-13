@@ -16,24 +16,35 @@ function initializeCalendar() {
             }
         }, 
 
-        // *** THE REAL BUILD: VISUAL INJECTION ***
         onDayCreate: (dObj, dStr, fp, dayElem) => { 
-            // 1. Convert the cell's date to Jalaali using shared util
+            // 1. Inject Jalaali Date (Visuals)
             injectJalaaliDate(dayElem);
 
-            // 2. Existing Event Logic (Only for Main Calendar)
-            const dateObj = dayElem.dateObj;
-            const date = getLocalISODateString(dateObj); 
-            const studyDays = new Set(state.allSessions.map(s => getLocalISODateString(new Date(s.timestamp)))); 
-            if (studyDays.has(date)) { dayElem.classList.add("study-day"); } 
+            const date = getLocalISODateString(dayElem.dateObj); 
             
+            // 2. Find Events for this day
             const eventsOnThisDay = state.allEvents.filter(e => e.date === date && !e.isDone); 
+            
             if (eventsOnThisDay.length > 0) { 
-                dayElem.classList.add("event-day"); 
-                // Add an event dot indicator
-                dayElem.innerHTML += `<span class="event-dot"></span>`;
-                // Use Tippy for tooltip instead of native title
-                dayElem.setAttribute('data-tooltip', eventsOnThisDay.map(e => e.title).join('\n'));
+                // Determine Highest Priority
+                let dayClass = 'priority-low'; // Default
+                const priorities = eventsOnThisDay.map(e => e.priority);
+                
+                if (priorities.includes('high')) {
+                    dayClass = 'priority-high';
+                } else if (priorities.includes('medium')) {
+                    dayClass = 'priority-medium';
+                }
+
+                // Apply Class
+                dayElem.classList.add(dayClass);
+                
+                // Add Dot indicator (optional, maybe not needed if whole cell is colored, but keeps consistency)
+                // dayElem.innerHTML += `<span class="event-dot"></span>`; 
+
+                // Tooltip
+                const eventsList = eventsOnThisDay.map(e => `• ${e.title}`).join('\n');
+                dayElem.setAttribute('data-tooltip', eventsList);
             } 
             
             dayElem.addEventListener('contextmenu', (e) => { e.preventDefault(); showEventModal(dayElem.dateObj); }); 
@@ -46,8 +57,12 @@ function initializeGlobalTooltips() { delegate('body', { target: '[data-tooltip]
 function init(appState, uiRefs, eventModalFn, logSessionFn) { state = appState; refs = uiRefs; showEventModal = eventModalFn; logSession = logSessionFn; }
 function updateStreakDisplay() { refs.streakCount.textContent = state.streakCount; if (state.streakCount > 0) { refs.streakContainer.classList.add('active-streak'); } else { refs.streakContainer.classList.remove('active-streak'); } if (state.streakCount >= state.streakTarget) { refs.streakContainer.classList.add('target-hit'); } else { refs.streakContainer.classList.remove('target-hit'); } }
 function toggleFocusModeVisuals() { if (state.isFocusMode) { document.body.classList.add('focus-mode'); refs.btnFocusMode.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Exit Zen Mode`; refs.btnFocusMode.dataset.tooltip = "Exit Zen Mode"; } else { document.body.classList.remove('focus-mode'); refs.btnFocusMode.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle></svg>`; refs.btnFocusMode.dataset.tooltip = "Enter Focus Mode"; } }
-const icons = { edit: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>`, delete: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>`, check: `✔` };
-
+const icons = { 
+    edit: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>`, 
+    delete: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>`, 
+    check: `✔`,
+    recover: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>`
+};
 function updateLogDisplay(filterDateOverride) { 
     refs.sessionLog.innerHTML = ''; 
     
@@ -103,7 +118,9 @@ function updateTaskDashboard() {
     
     filteredEvents.sort((a,b) => {
         const dateA = new Date(a.date); const dateB = new Date(b.date);
-        if (state.showCompletedTasks) return dateB - dateA; return dateA - dateB;
+        // Sort pending by Due Date (Asc), Completed by Date (Desc)
+        if (state.showCompletedTasks) return dateB - dateA; 
+        return dateA - dateB;
     });
     
     if (filteredEvents.length === 0) { refs.taskList.innerHTML = `<div style="text-align:center; color:#999; margin-top:20px; font-size:0.85rem;">No tasks.</div>`; return; }
@@ -124,9 +141,7 @@ function updateTaskDashboard() {
             else { countdownText = `${daysLeft}d left`; }
         }
         
-        // --- PERSIAN DATE ---
         const formattedDate = getPersianDateString(eventDate);
-        // --------------------
         
         let barFill = 0;
         if (state.showCompletedTasks) {
@@ -139,17 +154,25 @@ function updateTaskDashboard() {
 
         const item = document.createElement('div'); item.className = itemClass;
         
+        // --- NEW CONTROLS LOGIC ---
         let controlsHtml = '';
+        const commonBtns = `
+            <button class="action-icon-btn edit task-edit-btn" data-timestamp="${event.timestamp}" data-tooltip="Edit">${icons.edit}</button>
+            <button class="action-icon-btn delete task-delete-btn" data-timestamp="${event.timestamp}" data-tooltip="Delete">${icons.delete}</button>
+        `;
+
         if (state.showCompletedTasks) {
+            // Completed View: Recover | Edit | Delete
             controlsHtml = `
-                <button class="action-icon-btn edit task-edit-btn" data-timestamp="${event.timestamp}" data-tooltip="Edit">${icons.edit}</button>
-                <button class="action-icon-btn delete task-delete-btn" data-timestamp="${event.timestamp}" data-tooltip="Delete Permanently">${icons.delete}</button>
+                <button class="action-icon-btn task-recover-btn" data-timestamp="${event.timestamp}" data-tooltip="Un-complete" style="color:var(--primary); margin-right:4px;">${icons.recover}</button>
+                ${commonBtns}
             `;
         } else {
+            // Pending View: Done | Edit | Delete
             controlsHtml = `
                 <span class="task-date" style="margin-right:8px; font-weight:600; color:${daysLeft < 3 ? 'var(--danger)' : 'var(--text-muted)'}">${countdownText}</span>
-                <button class="action-icon-btn edit task-edit-btn" data-timestamp="${event.timestamp}" data-tooltip="Edit" style="margin-right:4px;">${icons.edit}</button>
-                <button class="task-done-btn" data-timestamp="${event.timestamp}" data-tooltip="Mark Done">✔</button>
+                <button class="task-done-btn" data-timestamp="${event.timestamp}" data-tooltip="Mark Done" style="margin-right:4px;">✔</button>
+                ${commonBtns}
             `;
         }
 
@@ -191,7 +214,16 @@ function initializeEventModalPicker() {
 
 
 function populateCourses() { refs.courseSelect.innerHTML = ''; refs.scoreCourseSelect.innerHTML = ''; refs.editCourseSelect.innerHTML = ''; refs.pomodoroCourseSelect.innerHTML = ''; refs.countdownCourseSelect.innerHTML = ''; state.allCourses.forEach(c => { const o1=document.createElement('option');o1.value=c;o1.textContent=c;refs.courseSelect.appendChild(o1); const o2=document.createElement('option');o2.value=c;o2.textContent=c;refs.scoreCourseSelect.appendChild(o2); const o3=document.createElement('option');o3.value=c;o3.textContent=c;refs.editCourseSelect.appendChild(o3); const o4=document.createElement('option');o4.value=c;o4.textContent=c;refs.pomodoroCourseSelect.appendChild(o4); const o5=document.createElement('option');o5.value=c;o5.textContent=c;refs.countdownCourseSelect.appendChild(o5); }); if (state.lastSelectedCourse && state.allCourses.includes(state.lastSelectedCourse)) { refs.courseSelect.value = state.lastSelectedCourse; refs.scoreCourseSelect.value = state.lastSelectedCourse; refs.editCourseSelect.value = state.lastSelectedCourse; refs.pomodoroCourseSelect.value = state.lastSelectedCourse; refs.countdownCourseSelect.value = state.lastSelectedCourse; } }
-function updateCourseEditorList() { refs.courseListEditor.innerHTML = ''; state.allCourses.forEach(course => { const item = document.createElement('div'); item.className = 'course-list-item'; item.style.cssText = "display:flex; justify-content:space-between; padding:8px; border-bottom:1px solid #eee; align-items:center;"; item.innerHTML = `<span>${course}</span><button class="action-icon-btn delete course-delete-btn" data-course="${course}">${icons.delete}</button>`; refs.courseListEditor.appendChild(item); }); }
+function updateCourseEditorList() { 
+    refs.courseListEditor.innerHTML = ''; 
+    state.allCourses.forEach(course => { 
+        const item = document.createElement('div'); 
+        item.className = 'course-list-item'; 
+        // Removed inline .style.cssText to let CSS handle layout
+        item.innerHTML = `<span>${course}</span><button class="action-icon-btn delete course-delete-btn" data-course="${course}">${icons.delete}</button>`; 
+        refs.courseListEditor.appendChild(item); 
+    }); 
+}
 function setLogViewMode(mode) { state.logViewMode = mode; updateLogDisplay(); }
 
 module.exports = { init, updateLogDisplay, updateTaskDashboard, updateStreakDisplay, toggleFocusModeVisuals, initializeCalendar, updateCalendar, resetCalendarToToday, initializeEventModalPicker, populateCourses, updateCourseEditorList, setLogViewMode, initializeGlobalTooltips };

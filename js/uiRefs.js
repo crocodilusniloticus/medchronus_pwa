@@ -13,6 +13,13 @@ const refs = {
     logScoreButton: document.getElementById('logScoreButton'), 
     streakContainer: document.getElementById('streak-container'), 
     streakCount: document.getElementById('streak-count'),
+    syncStatus: document.getElementById('sync-status'),
+    googleLogoutBtn: document.getElementById('google-logout-btn'),
+
+    syncBtn: document.getElementById('sync-btn'),
+    syncOnboardingModal: document.getElementById('sync-onboarding-modal'),
+    cancelSyncSetupBtn: document.getElementById('cancel-sync-setup-btn'),
+    confirmSyncSetupBtn: document.getElementById('confirm-sync-setup-btn'),
     
     taskList: document.getElementById('task-list'),
     btnToggleTasks: document.getElementById('btn-toggle-tasks'),
@@ -21,7 +28,8 @@ const refs = {
 
     eventModal: document.getElementById('event-modal'), 
     modalTitle: document.getElementById('modal-title'), 
-    eventText: document.getElementById('event-text'), 
+    eventText: document.getElementById('event-text'),
+    eventPriority: document.getElementById('event-priority'), 
     saveEventButton: document.getElementById('save-event-button'), 
     cancelEventButton: document.getElementById('cancel-event-button'),
     eventTimestamp: document.getElementById('event-timestamp'),
@@ -85,10 +93,10 @@ const refs = {
     selectAlarmBtn: document.getElementById('select-alarm-btn'),
     selectedAlarmFile: document.getElementById('selected-alarm-file'),
     
-    streakTargetInput: document.getElementById('streak-target-input'),
-    streakMinTimeInput: document.getElementById('streak-min-time-input'), 
     deadlineUrgencyInput: document.getElementById('deadline-urgency-input'), 
     
+    settingHeatmapTarget: document.getElementById('setting-heatmap-target'),
+
     settingFocusDuration: document.getElementById('setting-focus-duration'),
     settingShortBreakDuration: document.getElementById('setting-short-break-duration'),
     settingLongBreakDuration: document.getElementById('setting-long-break-duration'),
@@ -135,6 +143,9 @@ const refs = {
 
     studyCalendar: document.getElementById('study-calendar'),
     timeChart: document.getElementById('time-chart'),
-    scoreChart: document.getElementById('score-chart')
+    scoreChart: document.getElementById('score-chart'),
+    helpBtn: document.getElementById('help-btn'),
+    helpModal: document.getElementById('help-modal'),
+    closeHelpModalBtn: document.getElementById('close-help-modal-btn')
 };
 module.exports = refs;

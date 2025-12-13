@@ -318,86 +318,170 @@ function updateTimeChart() {
 }
 
 function getScoreChartOptions() {
-    const scoresByCourse = {};
-    state.allScores.forEach(s => { 
-        if (!scoresByCourse[s.course]) scoresByCourse[s.course] = []; 
-        scoresByCourse[s.course].push([new Date(s.timestamp), s.score]); 
+    // 1. Process Data: Group by Course and Sort by Date
+    const courseGroups = {};
+    let maxAttempts = 0;
+
+    state.allScores.forEach(s => {
+        if (!courseGroups[s.course]) {
+            courseGroups[s.course] = [];
+        }
+        courseGroups[s.course].push({
+            score: s.score,
+            date: new Date(s.timestamp),
+            notes: s.notes
+        });
     });
-    
-    const series = Object.keys(scoresByCourse).map(course => ({
-        name: course, type: 'line', data: scoresByCourse[course].sort((a, b) => a[0] - b[0]),
-        smooth: true, symbol: 'circle', symbolSize: 6, lineStyle: { width: 3 }
-    }));
-    
-    // LOAD PALETTE FROM CSS
-    const scorePalette = [
-        getCSSVal('--chart-c2'),
-        getCSSVal('--chart-c4'),
-        getCSSVal('--chart-c6'),
-        getCSSVal('--chart-c3'),
-        getCSSVal('--chart-c5')
-    ];
+
+    // Sort courses by latest activity (Right side = Most recent courses)
+    const courses = Object.keys(courseGroups).sort((a, b) => {
+        const lastA = Math.max(...courseGroups[a].map(i => i.date));
+        const lastB = Math.max(...courseGroups[b].map(i => i.date));
+        return lastA - lastB;
+    });
+
+    // Sort scores within courses (Oldest -> Newest) & Find Max Attempts
+    courses.forEach(c => {
+        courseGroups[c].sort((a, b) => a.date - b.date);
+        if (courseGroups[c].length > maxAttempts) {
+            maxAttempts = courseGroups[c].length;
+        }
+    });
+
+    // 2. Build Series Data
+    const seriesList = [];
+    const baseColor = getCSSVal('--chart-c4'); 
+
+    for (let i = 0; i < maxAttempts; i++) {
+        const dataForAttempt = courses.map(c => {
+            const entry = courseGroups[c][i]; 
+            if (!entry) return null; 
+            return {
+                value: entry.score,
+                date: entry.date,
+                notes: entry.notes,
+                course: c,
+                attemptIndex: i + 1
+            };
+        });
+
+        // Opacity gradient: Older attempts are ghosted, newest are solid
+        const opacity = 0.3 + (0.7 * (i / (maxAttempts - 1 || 1)));
+
+        seriesList.push({
+            name: `Attempt ${i + 1}`,
+            type: 'bar',
+            data: dataForAttempt,
+            barGap: '5%',          // Tight gap between attempts
+            barCategoryGap: '30%', // Distinct gap between courses
+            itemStyle: {
+                color: baseColor,
+                opacity: opacity,
+                borderRadius: [3, 3, 0, 0]
+            },
+            emphasis: {
+                focus: 'series',
+                itemStyle: { opacity: 1, color: getCSSVal('--chart-c2') }
+            }
+        });
+    }
 
     const colorText = getCSSVal('--chart-text');
     const colorGrid = getCSSVal('--chart-grid-line');
+    const zoomColor = getCSSVal('--chart-c1');
+
+    // Calculate Zoom: Show max 5 courses by default, anchored to the RIGHT (newest)
+    const defaultZoomStart = courses.length > 5 ? 100 - ((5 / courses.length) * 100) : 0;
 
     return {
-        color: scorePalette,
-        tooltip: { 
-            trigger: 'axis',
+        tooltip: {
+            trigger: 'item',
             backgroundColor: getCSSVal('--chart-tooltip-bg'),
             borderColor: colorGrid,
             textStyle: { color: colorText },
-            formatter: function(params) {
-                const date = new Date(params[0].axisValue);
-                const pDate = getPersianDateString(date);
-                let html = `<div style="margin-bottom:4px; border-bottom:1px solid ${colorGrid}; padding-bottom:4px;">${pDate}</div>`;
-                params.forEach(item => {
-                    const colorDot = `<span style="display:inline-block;margin-right:5px;border-radius:50%;width:10px;height:10px;background-color:${item.color};"></span>`;
-                    html += `<div style="display:flex; justify-content:space-between; gap:15px; margin-top:4px;"><span>${colorDot} ${item.seriesName}</span><span style="font-weight:bold">${item.value[1]}%</span></div>`;
-                });
-                return html;
+            formatter: (params) => {
+                if (!params.data) return '';
+                const pDate = getPersianDateString(params.data.date);
+                return `
+                    <div style="font-weight:bold; margin-bottom:4px; border-bottom:1px solid ${colorGrid}; padding-bottom:4px;">
+                        ${params.data.course} <span style="font-weight:normal; font-size:0.8em;">(#${params.data.attemptIndex})</span>
+                    </div>
+                    <div>Score: <strong style="color:${baseColor}">${params.value}%</strong></div>
+                    <div style="font-size:0.85em; color:${colorText}; margin-top:2px;">${pDate}</div>
+                    ${params.data.notes ? `<div style="font-style:italic; margin-top:4px; font-size:0.8em; opacity:0.8;">"${params.data.notes}"</div>` : ''}
+                `;
             }
         },
-        legend: { type: 'scroll', bottom: '0', textStyle: { color: colorText } },
-        grid: { left: '10%', right: '10%', top: '10%', bottom: '28%' },
-        xAxis: { 
-            type: 'time', 
-            axisLabel: { 
-                color: colorText,
-                formatter: function(value) {
-                    return getPersianDateString(new Date(value));
-                }
-            }, 
-            splitLine: { show: false } 
+        grid: {
+            left: '5%',
+            right: '5%',
+            top: '10%',
+            bottom: '35px', // Space for the scrollbar
+            containLabel: true
         },
-        yAxis: { type: 'value', min: 0, max: 100, axisLabel: { color: colorText }, splitLine: { lineStyle: { color: colorGrid, type: 'dashed' } } },
-        
-        dataZoom: [{ 
-            type: 'slider',
-            show: false, 
-            start: 0, 
-            end: 100, 
-            height: 5,        
-            bottom: '12%',
-            showDataShadow: false, 
-            moveHandleSize: 0,     
-            borderColor: 'transparent', 
-            backgroundColor: getCSSVal('--c-grey-neutral-bg'),  
-            fillerColor: getCSSVal('--chart-c1'),     
-            borderRadius: 4,             
-            handleIcon: 'path://M512 512m-208 0a208 208 0 1 0 416 0 208 208 0 1 0-416 0Z', 
-            handleSize: '200%', 
-            handleStyle: {
-                color: '#ffffff',      
-                borderColor: getCSSVal('--chart-c1'), 
-                borderWidth: 2,
-                shadowBlur: 3,
-                shadowColor: 'rgba(0, 0, 0, 0.1)'
+        xAxis: {
+            type: 'category',
+            data: courses,
+            axisLabel: {
+                color: colorText,
+                interval: 0,
+                fontSize: 11,
+                fontWeight: 'bold',
+                width: 90,
+                overflow: 'break'
             },
-            textStyle: { color: colorText } 
-        }],
-        series: series
+            axisLine: { lineStyle: { color: colorGrid } },
+            axisTick: { show: false }
+        },
+        yAxis: {
+            type: 'value',
+            min: 0,
+            max: 100,
+            axisLabel: { color: colorText },
+            splitLine: { lineStyle: { color: colorGrid, type: 'dashed' } }
+        },
+        
+        // FUNCTIONAL SCROLLBAR
+        dataZoom: [
+            {
+                type: 'slider',
+                show: true,
+                xAxisIndex: 0,
+                start: defaultZoomStart, 
+                end: 100,                
+                height: 10,              // Slim track
+                bottom: 5,
+                borderColor: 'transparent',
+                backgroundColor: 'rgba(0,0,0,0.03)',
+                fillerColor: 'rgba(40, 53, 147, 0.15)', 
+                borderRadius: 5,         
+                
+                // --- MINIMAL HANDLES ---
+                // Simple rounded vertical pill shape
+                handleIcon: 'path://M-2,0 h4 c1.1,0 2,0.9 2,2 v12 c0,1.1 -0.9,2 -2,2 h-4 c-1.1,0 -2,-0.9 -2,-2 v-12 c0,-1.1 0.9,-2 2,-2 z',
+                handleSize: '140%',      // Slightly larger than track to be grabbable
+                handleStyle: {
+                    color: '#ffffff',
+                    borderColor: '#cfd8dc', // Light grey border
+                    borderWidth: 1,
+                    shadowBlur: 2,
+                    shadowColor: 'rgba(0, 0, 0, 0.1)'
+                },
+
+                brushSelect: false,      // Disable selection drag
+                moveHandleSize: 0,       // Hide top bar
+                showDataShadow: false, 
+                showDetail: false
+            },
+            {
+                type: 'inside', 
+                xAxisIndex: 0,
+                zoomOnMouseWheel: false,
+                moveOnMouseWheel: true
+            }
+        ],
+        
+        series: seriesList
     };
 }
 

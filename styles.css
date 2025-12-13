@@ -131,8 +131,12 @@
     --cal-border: #4fc3f7;
     --cal-hover-bg: #b3e5fc;
     --cal-today-bg: #ffffff;
+    --card-cal-today: #04ab71;
     --cal-selected-text: #ffffff;
     --score-card-bg: #ffffff;
+    --ink-rgb: 40, 53, 147;
+    --gold-rgb: 255, 193, 7;
+
 
     /* --- Timer (Crisp White) --- */
     --card-timer-bg: #ffffff;
@@ -531,13 +535,7 @@ body {
    7. STATES & MODIFIERS (With Fixes)
    ========================================= */
 
-/* A. Study Days (Green) */
-.calendar-card .flatpickr-day.study-day { 
-    background-color: var(--card-study-bg) !important;
-    font-weight: bold; 
-    color: var(--card-study-accent) !important; 
-    border-color: var(--card-study-border) !important;
-}
+
 
 /* B. Selected / Range / Study-Selected Override */
 .calendar-card .flatpickr-day.selected, 
@@ -562,8 +560,8 @@ body {
 }
 .calendar-card .flatpickr-day.today.selected {
     color: #ffffff !important;
-    background: var(--card-cal-accent) !important;
-    border-color: var(--card-cal-accent) !important;
+    background: var(--card-cal-today) !important;
+    border-color: var(--card-cal-today) !important;
 }
 
 /* D. FIX JALAALI VISIBILITY (White on Blue) */
@@ -1130,4 +1128,142 @@ body.focus-mode .timer-panel .modern-textarea {
     height: 130px;        
     min-height: 40px;    
     margin-top: 10px;    
+}
+.calendar-card .flatpickr-day.dark-bg-text,
+.calendar-card .flatpickr-day.dark-bg-text .jalaali-date {
+    color: #ffffff !important;
+    opacity: 0.95 !important;
+    font-weight: 700;
+}
+
+
+/* --- Course Manager Modal Styles --- */
+.course-list-container {
+    max-height: 50vh;          /* Limits height to 50% of screen */
+    overflow-y: auto;          /* Enables scrollbar */
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    margin-top: 10px;
+    background: var(--c-white);
+}
+
+.course-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--c-taupe-spotlight-inner);
+    font-size: 0.95rem;
+    color: var(--text-main);
+    transition: background-color 0.2s;
+}
+
+.course-list-item:last-child {
+    border-bottom: none;
+}
+
+.course-list-item:hover {
+    background-color: var(--pill-hover-bg);
+}
+
+/* --- User Manual Styles --- */
+.help-modal-content {
+    width: 600px; /* Wider than standard modals */
+    max-width: 95%;
+}
+
+.manual-container {
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+.manual-section {
+    margin-bottom: 25px;
+    border-bottom: 1px solid var(--c-taupe-spotlight-inner);
+    padding-bottom: 15px;
+}
+
+.manual-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.manual-section h3 {
+    font-size: 1rem;
+    color: var(--primary);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.manual-section ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.manual-section li {
+    font-size: 0.9rem;
+    color: var(--text-main);
+    margin-bottom: 8px;
+    line-height: 1.5;
+    position: relative;
+    padding-left: 15px;
+}
+
+.manual-section li::before {
+    content: "•";
+    color: var(--text-muted);
+    position: absolute;
+    left: 0;
+    font-weight: bold;
+}
+
+.manual-icon {
+    display: inline-block;
+    background: var(--focus-btn-bg);
+    color: var(--focus-btn-text);
+    padding: 0 4px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: bold;
+}
+.header-actions {
+    display: flex;
+    align-items: center; /* Vertically centers the buttons */
+    gap: 8px;            /* Adds space between buttons automatically */
+}
+
+/* --- PRIORITY CALENDAR STYLES --- */
+.calendar-card .flatpickr-day.priority-high {
+    background-color: var(--danger) !important;
+    color: white !important;
+    border-color: var(--danger) !important;
+    font-weight: 700;
+}
+
+.calendar-card .flatpickr-day.priority-medium {
+    background-color: var(--warning) !important;
+    color: var(--c-bone-white) !important;
+    border-color: var(--warning) !important;
+    font-weight: 700;
+}
+
+.calendar-card .flatpickr-day.priority-low {
+    background-color: var(--card-cal-accent) !important;
+    color: white !important;
+    border-color: var(--card-cal-accent) !important;
+    font-weight: 600;
+}
+
+/* Ensure Jalaali dates are white on dark backgrounds */
+.calendar-card .flatpickr-day.priority-high .jalaali-date,
+.calendar-card .flatpickr-day.priority-low .jalaali-date {
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.calendar-card .flatpickr-day.priority-medium .jalaali-date {
+    color: rgba(0, 0, 0, 0.6) !important;
 }

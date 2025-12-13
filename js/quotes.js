@@ -1,5 +1,5 @@
 // --- CONFIGURATION ---
-const CHANGE_EVERY_MINUTES = 30; 
+const CHANGE_EVERY_MINUTES = 20; 
 
 // 1. YOUR HAND-PICKED ELITE LIST (Always included + New AI Giants)
 const MANUAL_QUOTES = [
@@ -140,21 +140,23 @@ async function fetchAndFilterQuotes() {
     // --- FILTERING ---
     const minedQuotes = rawData.filter(q => {
         // Normalize keys (supports standard keys AND JamesFT keys)
-        const text = (q.text || q.body || q.content || q.en || q.quoteText || "").toLowerCase();
+        const text = (q.text || q.body || q.content || q.en || q.quoteText || "").trim();
         const author = (q.author || q.quoteAuthor || "").toLowerCase();
 
-        // 1. Keep Elite Authors
+        // 1. STRICT LENGTH CHECK (< 90 characters)
+        if (text.length >= 120 || text.length === 0) return false;
+
+        // 2. Keep Elite Authors
         const isElite = ELITE_AUTHORS.some(elite => author.includes(elite.toLowerCase()));
         if (isElite) return true;
 
-        // 2. Scan for Topics
-        const hasKeyword = ALL_KEYWORDS.some(word => text.includes(word));
+        // 3. Scan for Topics
+        const hasKeyword = ALL_KEYWORDS.some(word => text.toLowerCase().includes(word));
         
-        // 3. Remove "Noise"
-        const isNoise = text.length > 250 || // Too long
-                        text.includes("marriage") || 
-                        text.includes("gardening") ||
-                        (text.includes("love") && !text.includes("science") && !text.includes("learning"));
+        // 4. Remove "Noise" (Specific off-topic constraints)
+        const isNoise = text.toLowerCase().includes("marriage") || 
+                        text.toLowerCase().includes("gardening") ||
+                        (text.toLowerCase().includes("love") && !text.toLowerCase().includes("science") && !text.toLowerCase().includes("learning"));
 
         return hasKeyword && !isNoise;
     }).map(q => ({
@@ -163,13 +165,14 @@ async function fetchAndFilterQuotes() {
         author: q.author || q.quoteAuthor || "Unknown"
     }));
 
-    const finalPool = [...MANUAL_QUOTES, ...minedQuotes];
+    // Combine and apply length filter to manual quotes as well, just in case
+    const finalPool = [...MANUAL_QUOTES, ...minedQuotes].filter(q => q.text.length < 90);
     
     // Shuffle
     finalPool.sort(() => Math.random() - 0.5);
 
     // Save
-    localStorage.setItem('cachedQuotes_Study_v5', JSON.stringify(finalPool));
+    localStorage.setItem('cachedQuotes_Study_v6', JSON.stringify(finalPool));
     state.quotes = finalPool;
     render(); 
 }
@@ -196,15 +199,15 @@ function init(containerId) {
     if (!state.container) return;
 
     // Clear old broken caches
-    ['cachedQuotes_Study_v1', 'cachedQuotes_Study_v2', 'cachedQuotes_Study_v3', 'cachedQuotes_Study_v4'].forEach(k => localStorage.removeItem(k));
+    ['cachedQuotes_Study_v1', 'cachedQuotes_Study_v2', 'cachedQuotes_Study_v3', 'cachedQuotes_Study_v4', 'cachedQuotes_Study_v5'].forEach(k => localStorage.removeItem(k));
 
     // Load Cache
-    const cached = localStorage.getItem('cachedQuotes_Study_v5');
+    const cached = localStorage.getItem('cachedQuotes_Study_v6');
     if (cached) {
         state.quotes = JSON.parse(cached);
         render(); 
     } else {
-        state.quotes = MANUAL_QUOTES;
+        state.quotes = MANUAL_QUOTES.filter(q => q.text.length < 90);
         render(); 
     }
 

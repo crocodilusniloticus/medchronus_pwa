@@ -67,7 +67,9 @@ function saveData() {
     localStorage.setItem('studyCourses', JSON.stringify(state.allCourses));
     localStorage.setItem('streakTarget', state.streakTarget); 
     localStorage.setItem('streakMinMinutes', state.streakMinMinutes);
-    
+    localStorage.setItem('heatmapTargetHours', state.heatmapTargetHours);
+    localStorage.setItem('heatmapOverdriveHours', state.heatmapOverdriveHours);
+
     // *** NEW: Save Pomodoro Settings ***
     const pomodoroSettings = {
         focus: state.pomodoroFocusDuration,
@@ -100,6 +102,9 @@ function loadData() {
     state.lastSelectedCourse = localStorage.getItem('lastSelectedCourse');
     state.streakTarget = parseInt(localStorage.getItem('streakTarget')) || 7;
     state.streakMinMinutes = parseInt(localStorage.getItem('streakMinMinutes')) || 15;
+
+    state.heatmapTargetHours = parseInt(localStorage.getItem('heatmapTargetHours')) || 8;
+    state.heatmapOverdriveHours = parseInt(localStorage.getItem('heatmapOverdriveHours')) || 10;
 
     // *** NEW: Load Pomodoro Settings ***
     const savedPomo = JSON.parse(localStorage.getItem('pomodoroSettings'));
@@ -137,10 +142,14 @@ function calculateStreak() {
         dailyTotals[dateStr] = (dailyTotals[dateStr] || 0) + (s.seconds || 0);
     });
 
-    const minSeconds = (state.streakMinMinutes || 0) * 60;
+    // CHANGE: Use Heatmap Target (Hours) converted to seconds
+    const targetHours = state.heatmapTargetHours || 8;
+    const minSeconds = targetHours * 3600;
+
     const validDates = Object.keys(dailyTotals).filter(date => dailyTotals[date] >= minSeconds);
     const sortedDates = validDates.sort((a, b) => new Date(b) - new Date(a)); 
 
+    // ... rest of the function remains the same ...
     if (sortedDates.length === 0) {
         state.streakCount = 0;
         return;
@@ -183,6 +192,9 @@ function exportData() {
         preferences: {
             streakTarget: state.streakTarget,
             streakMinMinutes: state.streakMinMinutes,
+            heatmapTarget: state.heatmapTargetHours,
+            heatmapHero: state.heatmapOverdriveHours,
+ 
             lastCourse: state.lastSelectedCourse,
             countdown: JSON.parse(localStorage.getItem('countdownValues')),
             alarmSound: localStorage.getItem('alarmSound'),
@@ -226,6 +238,9 @@ function importData(file) {
             if (data.preferences) {
                 state.streakTarget = data.preferences.streakTarget || 7;
                 state.streakMinMinutes = data.preferences.streakMinMinutes || 15;
+                state.heatmapTargetHours = data.preferences.heatmapTarget || 8;
+                state.heatmapOverdriveHours = data.preferences.heatmapHero || 10;
+
                 state.lastSelectedCourse = data.preferences.lastCourse;
                 if (data.preferences.alarmSound) localStorage.setItem('alarmSound', data.preferences.alarmSound);
                 if (data.preferences.countdown) localStorage.setItem('countdownValues', JSON.stringify(data.preferences.countdown));

@@ -73,14 +73,8 @@ function startTimer() {
     if (state.isStopwatchRunning) {
         // Pause logic
         pauseTimer();
-    } else if (state.isStopwatchPaused) {
-        // Resume logic
-        state.isStopwatchRunning = true; 
-        state.isStopwatchPaused = false;
-        refs.startButton.textContent = "Pause";
-        // Buttons already visible
     } else {
-        // Start fresh
+        // Start fresh OR Resume
         state.isStopwatchRunning = true; 
         state.isStopwatchPaused = false;
         refs.startButton.textContent = "Pause"; 

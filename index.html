@@ -22,6 +22,15 @@
     <script src="https://unpkg.com/@popperjs/core@2"></script>
     <script src="https://unpkg.com/tippy.js@6"></script>
 
+    <!-- CRITICAL FIX: Import Map for PWA Module Resolution -->
+    <script type="importmap">
+    {
+      "imports": {
+        "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"
+      }
+    }
+    </script>
+
     <style>
         .flatpickr-calendar { font-family: 'Inter', sans-serif; direction: rtl; }
         .flatpickr-month { direction: ltr; }
@@ -252,26 +261,152 @@
     </div>
 
     <!-- Modals -->
-    <div id="event-modal" class="modal-overlay"><div class="modal-content"><h2 id="modal-title">Add Deadline</h2><div class="input-group"><label>Title</label><input type="text" id="event-text" class="modern-input" placeholder="e.g. Nephro Exam"></div><div class="form-grid"><div class="input-group"><label>Due Date</label><input type="text" id="event-date-picker" class="modern-input" placeholder="Required"></div><div class="input-group"><label>Priority</label><select id="event-priority" class="modern-select"><option value="low">Low (Blue)</option><option value="medium">Medium (Orange)</option><option value="high">High (Red)</option></select></div></div><input type="hidden" id="event-timestamp"><div id="eventError" class="error-message"></div><div class="modal-footer"><button id="cancel-event-button" class="btn btn-ghost">Cancel</button><button id="save-event-button" class="btn btn-primary">Save</button></div></div></div>
-    
-    <div id="settings-modal" class="modal-overlay"><div class="modal-content"><h2>Settings</h2><div class="settings-section" style="margin-bottom:15px;"><button id="manage-courses-from-settings-btn" class="btn btn-outline" style="width:100%">Manage Courses</button></div>
-    <div class="settings-section" style="margin-bottom:15px;">
-        <label>Alarm (Custom Track)</label>
-        <div style="display:flex; gap:10px;">
-            <button id="select-alarm-btn" class="btn btn-outline" style="flex:1;">Select File</button>
-            <button id="test-alarm-btn" class="btn btn-ghost">Test</button>
+    <div id="event-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 id="modal-title">Add Deadline</h2>
+            <div class="input-group"><label>Title</label><input type="text" id="event-text" class="modern-input" placeholder="e.g. Nephro Exam"></div>
+            <div class="form-grid">
+                <div class="input-group"><label>Due Date</label><input type="text" id="event-date-picker" class="modern-input" placeholder="Required"></div>
+                <div class="input-group"><label>Priority</label><select id="event-priority" class="modern-select"><option value="low">Low (Blue)</option><option value="medium">Medium (Orange)</option><option value="high">High (Red)</option></select></div>
+            </div>
+            <input type="hidden" id="event-timestamp">
+            <div id="eventError" class="error-message"></div>
+            <div class="modal-footer"><button id="cancel-event-button" class="btn btn-ghost">Cancel</button><button id="save-event-button" class="btn btn-primary">Save</button></div>
         </div>
-        <span id="selected-alarm-file" style="font-size:0.8rem; color:var(--text-muted); display:block; margin-top:5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Default</span>
     </div>
     
-    <div class="settings-section" style="border-top: 1px solid var(--border); padding-top: 15px;"><div class="form-grid" style="grid-template-columns: 1fr 1fr; gap: 12px;"><div class="input-group"><label style="font-size: 0.9rem; font-weight:600;">Daily Goal (Hours)</label><input type="number" id="setting-heatmap-target" class="modern-input" placeholder="8"></div><div class="input-group"><label style="font-size: 0.9rem; font-weight:600;">Deadline Lookahead (Days)</label><input type="number" id="deadline-urgency-input" class="modern-input" min="1" max="365"></div></div></div><div class="settings-section" style="margin-top:15px; border-top: 1px solid var(--border); padding-top: 15px;"><label style="margin-bottom: 8px; display: block; font-weight: 600; color: var(--text-main);">Pomodoro Timings (Mins)</label><div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;"><div class="input-group"><label style="font-size: 0.75rem;">Focus</label><input type="number" id="setting-focus-duration" class="modern-input"></div><div class="input-group"><label style="font-size: 0.75rem;">Short Brk</label><input type="number" id="setting-short-break-duration" class="modern-input"></div><div class="input-group"><label style="font-size: 0.75rem;">Long Brk</label><input type="number" id="setting-long-break-duration" class="modern-input"></div></div></div><div class="settings-section" style="margin-top:15px; border-top: 1px solid var(--border); padding-top: 15px;"><label>Backup</label><div style="display:flex; gap:10px;"><button id="export-data-btn" class="btn btn-outline" style="flex:1;">Export</button><button id="import-data-btn" class="btn btn-outline" style="flex:1;">Import</button></div><input type="file" id="import-file-input" style="display:none" accept=".json"></div><div class="settings-section" style="margin-top:15px; border-top: 1px solid var(--border); padding-top: 15px;"><label>Account</label><button id="google-logout-btn" class="btn btn-danger" style="width: 100%;">Disconnect Google Account</button></div><div class="modal-footer"><button id="close-settings-modal-btn" class="btn btn-ghost">Cancel</button><button id="save-settings-btn" class="btn btn-primary">Save Changes</button></div></div></div>
+    <div id="settings-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2>Settings</h2>
+            <div class="settings-section" style="margin-bottom:15px;">
+                <button id="manage-courses-from-settings-btn" class="btn btn-outline" style="width:100%">Manage Courses</button>
+            </div>
+            
+            <div class="settings-section" style="margin-bottom:15px;">
+                <label>Alarm (Custom Track)</label>
+                <div style="display:flex; gap:10px;">
+                    <button id="select-alarm-btn" class="btn btn-outline" style="flex:1;">Select File</button>
+                    <button id="test-alarm-btn" class="btn btn-ghost">Test</button>
+                </div>
+                <span id="selected-alarm-file" style="font-size:0.8rem; color:var(--text-muted); display:block; margin-top:5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Default</span>
+            </div>
+            
+            <div class="settings-section" style="border-top: 1px solid var(--border); padding-top: 15px;">
+                <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="input-group"><label style="font-size: 0.9rem; font-weight:600;">Daily Goal (Hours)</label><input type="number" id="setting-heatmap-target" class="modern-input" placeholder="8"></div>
+                    <div class="input-group"><label style="font-size: 0.9rem; font-weight:600;">Deadline Lookahead (Days)</label><input type="number" id="deadline-urgency-input" class="modern-input" min="1" max="365"></div>
+                </div>
+            </div>
 
-    <div id="pomodoro-prompt-modal" class="modal-overlay"><div class="modal-content" style="text-align: center;"><h2 id="pomodoro-prompt-title" style="border:none; margin-bottom: 10px;">Phase Complete!</h2><p id="pomodoro-prompt-text" style="color:var(--text-muted); font-size: 1rem; margin-bottom: 25px;"></p><div class="modal-footer" style="justify-content: center; gap: 20px;"><button id="pomodoro-prompt-stop-btn" class="btn btn-ghost">Stop Session</button><button id="pomodoro-prompt-confirm-btn" class="btn btn-primary btn-large">Start Next Phase</button></div></div></div>
-    <div id="confirm-modal" class="modal-overlay"><div class="modal-content"><h2 id="modal-confirm-title">Confirm</h2><p id="modal-confirm-text" style="color:var(--text-muted);"></p><input type="hidden" id="item-to-process"><div class="modal-footer"><button id="cancel-delete-button" class="btn btn-ghost">Cancel</button><button id="confirm-delete-button" class="btn btn-danger">Delete</button></div></div></div>
-    <div id="edit-log-modal" class="modal-overlay"><div class="modal-content"><h2 id="edit-modal-title">Edit Entry</h2><input type="hidden" id="edit-timestamp"><div class="form-grid"><div class="input-group"><label>Date</label><input type="text" id="edit-date-picker" class="modern-input"></div><div class="input-group"><label>Course</label><select id="edit-course-select" class="modern-select"></select></div></div><div id="edit-session-group" class="input-group"><label>Duration</label><input type="text" id="edit-duration" class="modern-input"></div><div id="edit-score-group" class="input-group"><label>Score</label><input type="number" id="edit-score" class="modern-input"></div><div class="input-group"><label>Notes</label><textarea id="edit-notes" class="modern-textarea" rows="3"></textarea></div><div id="editError" class="error-message"></div><div class="modal-footer"><button id="cancel-edit-button" class="btn btn-ghost">Cancel</button><button id="save-edit-button" class="btn btn-primary">Save</button></div></div></div>
-    <div id="chart-modal" class="modal-overlay"><div class="modal-content chart-modal-content"><h2 id="zoomed-chart-title"></h2><div id="zoomed-chart-container"></div><div class="modal-footer"><button id="close-chart-modal-button" class="btn btn-ghost">Close</button></div></div></div>
-    <div id="courses-modal" class="modal-overlay"><div class="modal-content"><h2>Manage Courses</h2><div class="input-group" style="display:flex; gap:10px;"><input type="text" id="new-course-name" class="modern-input" placeholder="New Course"><button id="add-course-btn" class="btn btn-primary">Add</button></div><hr style="margin:15px 0; border:0; border-top:1px solid var(--border);"><div id="course-list-editor" class="course-list-container custom-scrollbar"></div><div class="modal-footer"><button id="close-courses-modal-btn" class="btn btn-ghost">Close</button></div></div></div>
-    <div id="help-modal" class="modal-overlay"><div class="modal-content help-modal-content"><h2>User Guide</h2><div id="manual-container" class="manual-container custom-scrollbar"></div><div class="modal-footer"><button id="close-help-modal-btn" class="btn btn-primary">Got it</button></div></div></div>
+            <div class="settings-section" style="margin-top:15px; border-top: 1px solid var(--border); padding-top: 15px;">
+                <label style="margin-bottom: 8px; display: block; font-weight: 600; color: var(--text-main);">Pomodoro Timings (Mins)</label>
+                <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+                    <div class="input-group"><label style="font-size: 0.75rem;">Focus</label><input type="number" id="setting-focus-duration" class="modern-input"></div>
+                    <div class="input-group"><label style="font-size: 0.75rem;">Short Brk</label><input type="number" id="setting-short-break-duration" class="modern-input"></div>
+                    <div class="input-group"><label style="font-size: 0.75rem;">Long Brk</label><input type="number" id="setting-long-break-duration" class="modern-input"></div>
+                </div>
+            </div>
+
+            <div class="settings-section" style="margin-top:15px; border-top: 1px solid var(--border); padding-top: 15px;">
+                <label>Backup</label>
+                <div style="display:flex; gap:10px;">
+                    <button id="export-data-btn" class="btn btn-outline" style="flex:1;">Export</button>
+                    <button id="import-data-btn" class="btn btn-outline" style="flex:1;">Import</button>
+                </div>
+                <input type="file" id="import-file-input" style="display:none" accept=".json">
+            </div>
+
+            <div class="settings-section" style="margin-top:15px; border-top: 1px solid var(--border); padding-top: 15px;">
+                <label>Account</label>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <button id="cloud-auth-btn" class="btn btn-outline" style="width: 100%;">Cloud Login (Sync Memory)</button>
+                    <button id="google-logout-btn" class="btn btn-danger" style="width: 100%;">Disconnect Google Calendar</button>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button id="close-settings-modal-btn" class="btn btn-ghost">Cancel</button>
+                <button id="save-settings-btn" class="btn btn-primary">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="pomodoro-prompt-modal" class="modal-overlay">
+        <div class="modal-content" style="text-align: center;">
+            <h2 id="pomodoro-prompt-title" style="border:none; margin-bottom: 10px;">Phase Complete!</h2>
+            <p id="pomodoro-prompt-text" style="color:var(--text-muted); font-size: 1rem; margin-bottom: 25px;"></p>
+            <div class="modal-footer" style="justify-content: center; gap: 20px;">
+                <button id="pomodoro-prompt-stop-btn" class="btn btn-ghost">Stop Session</button>
+                <button id="pomodoro-prompt-confirm-btn" class="btn btn-primary btn-large">Start Next Phase</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirm-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 id="modal-confirm-title">Confirm</h2>
+            <p id="modal-confirm-text" style="color:var(--text-muted);"></p>
+            <input type="hidden" id="item-to-process">
+            <div class="modal-footer">
+                <button id="cancel-delete-button" class="btn btn-ghost">Cancel</button>
+                <button id="confirm-delete-button" class="btn btn-danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="edit-log-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 id="edit-modal-title">Edit Entry</h2>
+            <input type="hidden" id="edit-timestamp">
+            <div class="form-grid">
+                <div class="input-group"><label>Date</label><input type="text" id="edit-date-picker" class="modern-input"></div>
+                <div class="input-group"><label>Course</label><select id="edit-course-select" class="modern-select"></select></div>
+            </div>
+            <div id="edit-session-group" class="input-group"><label>Duration</label><input type="text" id="edit-duration" class="modern-input"></div>
+            <div id="edit-score-group" class="input-group"><label>Score</label><input type="number" id="edit-score" class="modern-input"></div>
+            <div class="input-group"><label>Notes</label><textarea id="edit-notes" class="modern-textarea" rows="3"></textarea></div>
+            <div id="editError" class="error-message"></div>
+            <div class="modal-footer">
+                <button id="cancel-edit-button" class="btn btn-ghost">Cancel</button>
+                <button id="save-edit-button" class="btn btn-primary">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="chart-modal" class="modal-overlay">
+        <div class="modal-content chart-modal-content">
+            <h2 id="zoomed-chart-title"></h2>
+            <div id="zoomed-chart-container"></div>
+            <div class="modal-footer">
+                <button id="close-chart-modal-button" class="btn btn-ghost">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="courses-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2>Manage Courses</h2>
+            <div class="input-group" style="display:flex; gap:10px;">
+                <input type="text" id="new-course-name" class="modern-input" placeholder="New Course">
+                <button id="add-course-btn" class="btn btn-primary">Add</button>
+            </div>
+            <hr style="margin:15px 0; border:0; border-top:1px solid var(--border);">
+            <div id="course-list-editor" class="course-list-container custom-scrollbar"></div>
+            <div class="modal-footer">
+                <button id="close-courses-modal-btn" class="btn btn-ghost">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="help-modal" class="modal-overlay">
+        <div class="modal-content help-modal-content">
+            <h2>User Guide</h2>
+            <div id="manual-container" class="manual-container custom-scrollbar"></div>
+            <div class="modal-footer">
+                <button id="close-help-modal-btn" class="btn btn-primary">Got it</button>
+            </div>
+        </div>
+    </div>
     
     <audio id="alarm-sound"></audio>
     

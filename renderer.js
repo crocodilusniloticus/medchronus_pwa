@@ -1,5 +1,3 @@
-// renderer.js - PWA Entry Point
-
 import { state } from './js/state.js';
 import refs from './js/uiRefs.js';
 import * as dataManager from './js/dataManager.js';
@@ -12,9 +10,10 @@ import * as tools from './js/tools.js';
 import * as manual from './js/manual.js';
 import * as quotes from './js/quotes.js';
 import * as syncModal from './js/syncModal.js';
-import './js/fa.js'; // <--- CRITICAL FIX: Registers the Persian Locale
+import * as authModal from './js/authModal.js'; // NEW
+import { supabase } from './js/supabaseClient.js'; // NEW
+import './js/fa.js'; 
 
-// Expose state globally for debugging
 window.state = state;
 
 function initializeApp() {
@@ -23,12 +22,11 @@ function initializeApp() {
     try {
         console.log("Initializing MedChronos PWA...");
 
-        // 1. INJECT HTML COMPONENTS
         manual.init();
         quotes.init('quote-container');
         syncModal.inject(); 
+        authModal.injectAuthModal(); // Inject Auth Modal
 
-        // 2. DEFINE UPDATE LOGIC
         const updateAllDisplays = () => {
             views.populateCourses(); 
             views.updateLogDisplay(); 
@@ -41,27 +39,51 @@ function initializeApp() {
             if(timers && timers.updatePomodoroDisplay) timers.updatePomodoroDisplay();
         };
 
-        // 3. INITIALIZE MODULES
-        dataManager.init(state, refs);
-        
-        // Charts Init
-        charts.init(state, refs); 
-        charts.initializeCharts(); // <--- FIX: Run immediately so objects exist
-        charts.setPieMode(state.pieChartMode);
+        // UI Event listener for the new Cloud Button
+        document.getElementById('cloud-auth-btn').addEventListener('click', async () => {
+            const { data } = await supabase.auth.getSession();
+            if (data.session) {
+                // If already logged in, maybe ask to logout? 
+                const confirmLogout = confirm("You are logged in. Log out?");
+                if (confirmLogout) {
+                    await supabase.auth.signOut();
+                    authModal.updateAuthButtonState(false);
+                    alert("Logged out of Cloud Sync.");
+                }
+            } else {
+                modals.hideSettingsModal(); // Close settings to show auth
+                authModal.showAuthModal();
+            }
+        });
 
+        // Initialize Modules
+        dataManager.init(state, refs);
+        charts.init(state, refs); 
+        charts.initializeCharts(); 
+        charts.setPieMode(state.pieChartMode);
         timers.init(state, refs, dataManager.logSession, modals.playAlarm, updateAllDisplays, dataManager.saveData, dataManager.saveTimerProgress);
         views.init(state, refs, modals.showEventModal, dataManager.logSession);
-        
         modals.init(state, refs, dataManager, updateAllDisplays, charts.getTimeChartOptions, charts.getScoreChartOptions, charts.getCharts, charts.getTrendChartOptions);
-        
         listeners.init(state, refs, timers, modals, charts, views, dataManager, updateAllDisplays);       
         tools.initToolsListeners(); 
         
-        // 4. LOAD DATA & RENDER
+        // Load Data
         dataManager.loadData();
         dataManager.checkForRecoveredSession();
         
-        // Final Render
+        // Initial Auth Check
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) {
+                authModal.updateAuthButtonState(true);
+                dataManager.syncWithSupabase(); // Auto-sync on startup if logged in
+            }
+        });
+
+        // Listen for data updates from sync
+        window.addEventListener('data-updated', () => {
+            updateAllDisplays();
+        });
+        
         views.populateCourses();
         views.initializeCalendar();
         views.initializeEventModalPicker();
@@ -70,9 +92,7 @@ function initializeApp() {
         updateAllDisplays(); 
         
         window.isAppInitialized = true;
-        console.log("App Initialized Successfully.");
 
-        // Handle Window Resize for Charts
         window.addEventListener('resize', () => {
             const chartData = charts.getCharts();
             if (chartData.timeChart) chartData.timeChart.resize();

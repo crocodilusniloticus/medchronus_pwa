@@ -1,77 +1,160 @@
+/**
+ * manual.js
+ * Comprehensive user manual and help documentation.
+ * Uses ES Module syntax for PWA compatibility.
+ */
+
 const manualContent = `
-<div class="manual-section">
-    <h3>Google Calendar Sync</h3>
-    <div style="background: var(--bg-body); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 10px;">
-        <strong style="color: var(--danger); display:block; margin-bottom:5px;">⚠️ Strict Sync Rule</strong>
-        <p style="margin:0; font-size: 0.9rem; line-height: 1.5;">
-            This App is the master controller for the <strong>'MedChronos'</strong> calendar <em>only</em>.
-            <br><br>
-            1. Events in App &rarr; Pushed to Google.
-            <br>2. Events found on Google ('MedChronos') but <em>not</em> in the App &rarr; <strong>Deleted</strong>.
+<div class="manual-container-inner">
+
+    <div class="manual-section">
+        <h3>📲 How to Install (PWA)</h3>
+        <p class="manual-intro">
+            MedChronos is a <strong>Progressive Web App</strong>. It lives in your browser but installs like a native app for offline use.
         </p>
+        <div class="manual-card-grid">
+            <div class="manual-card">
+                <strong>🖥️ Desktop (Chrome/Edge)</strong>
+                <p>Look for the <i class="fas fa-download"></i> <strong>Install icon</strong> on the right side of the URL bar. Click it to install as a standalone app.</p>
+            </div>
+            <div class="manual-card">
+                <strong>🍎 iOS (Safari)</strong>
+                <p>Tap the <strong>Share</strong> button <i class="fas fa-share-square"></i> &rarr; Scroll down &rarr; Tap <strong>"Add to Home Screen"</strong>.</p>
+            </div>
+            <div class="manual-card">
+                <strong>🤖 Android (Chrome)</strong>
+                <p>Tap the <strong>Three Dots</strong> menu <i class="fas fa-ellipsis-v"></i> &rarr; Tap <strong>"Install App"</strong> or "Add to Home Screen".</p>
+            </div>
+        </div>
     </div>
-    <ul>
-        <li><strong>Usage:</strong> Add deadlines inside this App. Use your phone only to <em>view</em> them.</li>
-        <li><strong>Warning:</strong> Any event you add manually to the 'MedChronos' calendar on your phone will be deleted upon the next sync because it does not exist in the App.</li>
-    </ul>
+
+    <div class="manual-section">
+        <h3>⚠️ Critical: Google Calendar Sync</h3>
+        <div class="manual-alert manual-alert-danger">
+            <strong>The "Master Controller" Rule</strong>
+            <p>
+                This app acts as the master source for the <em>"MedChronos"</em> calendar.
+                <br><br>
+                <strong>Do NOT create events in the Google Calendar app directly.</strong>
+                <br>
+                If you add an exam via the Google Calendar app/website, MedChronos will <strong>delete it</strong> upon the next sync because it is not in the local database.
+                <br><br>
+                ✅ <strong>Correct Usage:</strong> Create deadlines <em>inside</em> MedChronos. Use your phone only to VIEW them.
+            </p>
+        </div>
+    </div>
+
+    <div class="manual-section">
+        <h3>☁️ Cloud & Offline Data</h3>
+        <ul>
+            <li><strong>Offline First:</strong> All data is stored immediately in your browser. You never need internet to study.</li>
+            <li><strong>Cloud Backup:</strong> If you sign in (via Settings), your Sessions, Scores, and Settings are backed up to the secure cloud.</li>
+            <li><strong>Cross-Device:</strong> You can study on your phone during a commute and review on your laptop later. Data merges automatically when online.</li>
+        </ul>
+    </div>
+
+    <div class="manual-section">
+        <h3>⏱️ Study Modes</h3>
+        <ul>
+            <li><strong>Stopwatch:</strong> For unstructured "Deep Work".</li>
+            <li><strong>Pomodoro:</strong> Automated cycles (default: 50m Focus / 10m Break). The app tracks the cycle phase for you.</li>
+            <li><strong>Zen Mode:</strong> Tap the <i class="fas fa-eye"></i> icon (or "Focus Mode" button) to hide the dashboard and focus purely on the timer.</li>
+        </ul>
+    </div>
+
+    <div class="manual-section">
+        <h3>📊 Analytics & Streaks</h3>
+        <ul>
+            <li><strong>The Streak:</strong> Measures consistency. You must meet your daily goal (default: 8h) to increase the streak.</li>
+            <li><strong>Freeze Logic:</strong> If you miss a day, the streak resets. (Tip: You can lower your daily goal in Settings on busy days to keep the streak alive).</li>
+            <li><strong>Trend Chart:</strong> Shows your last 7 days vs. your 30-day average to tell if you are "On Fire" or need to "Focus Up".</li>
+        </ul>
+    </div>
+
+    <div class="manual-section">
+        <h3>🧠 Focus Tools</h3>
+        <ul>
+            <li><strong>Audio Engine:</strong> Brown Noise (Deep), Pink Noise (Balanced), White Noise (Sharp).</li>
+            <li><strong>Breathing Pacer:</strong> Visual "Box Breathing" guide (4-4-4-4) to reduce pre-exam anxiety. Tap to activate.</li>
+            <li><strong>Calendar:</strong> Full dual support for Gregorian and Jalaali dates. Click "Today" to reset the history view.</li>
+        </ul>
+    </div>
+
 </div>
 
-
-<div class="manual-section">
-    <h3>Calendar & Jalaali Dates</h3>
-    <ul>
-        <li><strong>Dual Dates:</strong> The calendar automatically shows Gregorian dates (large) and <strong>Persian (Jalaali)</strong> dates (small, bottom-left) simultaneously.</li>
-        <li><strong>Adding Deadlines:</strong> Right-click (or long-press) any day to add an exam or task.</li>
-        <li><strong>Priority Colors:</strong>
-            <br>• <span style="color:var(--danger); font-weight:bold;">High (Red):</span> Urgent exams.
-            <br>• <span style="color:var(--warning); font-weight:bold;">Medium (Orange):</span> Important deadlines.
-            <br>• <span style="color:var(--primary); font-weight:bold;">Low (Blue):</span> Standard reminders.
-        </li>
-        <li><strong>History:</strong> Clicking a past date filters the <strong>History Log</strong> to show only sessions from that day. Click "Today" to reset.</li>
-    </ul>
-</div>
-
-<div class="manual-section">
-    <h3>Study Timers</h3>
-    <ul>
-        <li><strong>Stopwatch:</strong> Standard timer. Great for unstructured "deep work" sessions.</li>
-        <li><strong>Pomodoro:</strong> Automated cycles. Focus / Short Break / Focus. After 4 cycles, you get a Long Break.
-            <br><em>(Customize durations in Settings).</em></li>
-        <li><strong>Countdown:</strong> Fixed duration (e.g., "3 Hours"). Ideal for simulating mock exams.</li>
-        <li><strong>Zen Mode:</strong> Click the "Zen" icon to black out the interface and focus purely on the timer.</li>
-    </ul>
-</div>
-
-<div class="manual-section">
-    <h3>Analytics & Scores</h3>
-    <ul>
-        <li><strong>Streak:</strong> Your streak only increases if you meet your <strong>Daily Goal</strong> (Default: 8 hours). Adjust this in Settings.</li>
-        <li><strong>Trend Chart:</strong> Shows your study volume over the last 7 or 30 days. The "Status" (e.g., "On Fire", "Focus Up") compares your recent week to your monthly average.</li>
-        <li><strong>Log Score:</strong> Record practice exam results (0-100%). The "Performance" chart tracks your improvement per subject over time.</li>
-        <li><strong>Attempts:</strong> If you take multiple tests for one subject, the chart groups them so you can see your trajectory.</li>
-    </ul>
-</div>
-
-<div class="manual-section">
-    <h3>Focus Tools</h3>
-    <ul>
-        <li><strong>Audio Deck:</strong>
-            <br>• <strong>Brown Noise:</strong> Deep, rumbly (like a waterfall). Best for deep concentration.
-            <br>• <strong>Pink Noise:</strong> Balanced (like rain). Good for general study.
-            <br>• <strong>White Noise:</strong> High pitch (like static). Good for blocking outside chatter.
-        </li>
-        <li><strong>Box Breathing:</strong> A visual pacer to reduce anxiety. Tap to start. Switch between "Orb" and "Lotus" styles.</li>
-    </ul>
-</div>
-
-<div class="manual-section">
-    <h3>Data & Backup</h3>
-    <ul>
-        <li><strong>Offline First:</strong> Your data lives on this computer.</li>
-        <li><strong>Export/Import:</strong> Go to <strong>Settings > Backup</strong> to save a backup file. Use this to move data to a new computer or keep a safe copy.</li>
-        <li><strong>Courses:</strong> You can Add/Delete subjects in <strong>Settings > Manage Courses</strong>. Deleting a course does <em>not</em> delete its history logs.</li>
-    </ul>
-</div>
+<style>
+    /* Embedded styles for the manual to ensure consistency */
+    .manual-container-inner {
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: var(--text-primary);
+    }
+    .manual-section {
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .manual-section:last-child {
+        border-bottom: none;
+    }
+    .manual-section h3 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        color: var(--accent-color);
+        font-size: 1.2rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .manual-card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-top: 15px;
+    }
+    .manual-card {
+        background: var(--bg-card);
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+    }
+    .manual-card strong {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--text-primary);
+    }
+    .manual-card p {
+        margin: 0;
+        font-size: 0.85rem;
+        opacity: 0.8;
+    }
+    .manual-alert {
+        padding: 15px;
+        border-radius: 8px;
+        margin-top: 10px;
+        font-size: 0.9rem;
+    }
+    .manual-alert-danger {
+        background: rgba(255, 77, 77, 0.1);
+        border: 1px solid var(--danger);
+        color: var(--text-primary);
+    }
+    .manual-alert-danger strong {
+        color: var(--danger);
+        font-size: 1rem;
+    }
+    .manual-intro {
+        opacity: 0.9;
+        margin-bottom: 20px;
+    }
+    ul {
+        padding-left: 20px;
+        margin-top: 5px;
+    }
+    li {
+        margin-bottom: 8px;
+    }
+</style>
 `;
 
 export function init() {
@@ -81,6 +164,6 @@ export function init() {
             container.innerHTML = manualContent;
         }
     } catch (e) {
-        console.error("Failed to load manual content:", e);
+        console.error("Failed to inject manual content:", e);
     }
 }

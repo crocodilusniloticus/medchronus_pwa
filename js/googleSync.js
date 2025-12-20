@@ -184,5 +184,47 @@ async function performSync(localEvents) {
 }
 
 export async function deleteSingleEvent(googleId) {
-    return { success: true };
+    // 1. Ensure API is initialized
+    if (!gapiInited || !gisInited) {
+        return { success: false, error: "Google API not initialized." };
+    }
+
+    // 2. Ensure User is Logged In
+    if (!window.gapi.client.getToken()) {
+        try {
+            await handleAuthClick();
+        } catch (e) {
+            return { success: false, error: "Login required to delete cloud event." };
+        }
+    }
+
+    try {
+        // 3. Find the 'MedChronos' Calendar ID
+        const calendarName = 'MedChronos';
+        const calList = await window.gapi.client.calendar.calendarList.list();
+        const medCal = calList.result.items.find(c => c.summary === calendarName);
+
+        if (!medCal) {
+            // If the calendar doesn't exist, the event is effectively deleted
+            return { success: true };
+        }
+
+        // 4. Execute Delete
+        await window.gapi.client.calendar.events.delete({
+            calendarId: medCal.id,
+            eventId: googleId
+        });
+
+        return { success: true };
+
+    } catch (e) {
+        // 5. Handle "Not Found" or "Gone" as success
+        // Google API returns status 404 or 410 if the event is already deleted
+        if (e.status === 404 || e.status === 410) {
+            return { success: true };
+        }
+
+        console.error("Delete single failed:", e);
+        return { success: false, error: e.message || "Failed to delete remote event." };
+    }
 }

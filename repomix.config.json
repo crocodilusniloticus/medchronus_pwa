@@ -1,0 +1,23 @@
+{
+  "ignore": {
+    "useGitignore": true,
+    "useDefaultPatterns": true,
+    "customPatterns": [
+      "node_modules/**",
+      "dist/**",
+      ".git/**",
+      ".github/**",
+      "coverage/**",
+      "repomix-output.xml",
+      "package-lock.json",
+      "yarn.lock",
+      "pnpm-lock.yaml",
+      "**/*.log",
+      "credentials.json",
+      "token.json",
+      "arvan.exe",
+      "main.js",
+      "cleanup-repo"
+    ]
+  }
+}

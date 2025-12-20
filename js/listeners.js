@@ -1,5 +1,7 @@
+import { pushEventsToGoogle, handleSignoutClick, deleteSingleEvent } from './googleSync.js'; // FIX: Import logic
+
 let refs, timers, modals, charts, views, dataManager, state, updateAllDisplays;
-let statusTimeout = null; // Variable to manage the status message timer
+let statusTimeout = null; 
 
 function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, dataMgr, updateAllDisplaysFn) {
     state = appState;
@@ -11,135 +13,116 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
     dataManager = dataMgr; 
     updateAllDisplays = updateAllDisplaysFn;
 
-    // --- UTILITIES ---
     const restoreFocus = () => {
         if (document.activeElement) { document.activeElement.blur(); }
         window.focus(); document.body.focus(); 
     };
 
-    // Robust Status Message handling (prevents flickering or hidden messages)
     const setStatus = (text, isError = false) => {
         if(refs.syncStatus) {
-            // 1. Clear any existing timer so the message doesn't disappear instantly
             if (statusTimeout) clearTimeout(statusTimeout);
-
-            // 2. Set content and style
             refs.syncStatus.textContent = text;
             refs.syncStatus.style.color = isError ? 'var(--danger)' : 'var(--primary)';
             refs.syncStatus.style.opacity = '1';
-            
-            // 3. Set new timer to fade out after 3 seconds
             statusTimeout = setTimeout(() => { 
                 if(refs.syncStatus) refs.syncStatus.style.opacity = '0'; 
-            }, 3000);
+            }, 4000);
         }
     };
 
-    // ---------------------------------------------------------
-    // NEW: Multi-Tab Synchronization (Fixes "Zombie Data")
-    // ---------------------------------------------------------
     window.addEventListener('storage', (event) => {
-        // Only react if one of our core data keys changed
         if (['studySessions', 'studyScores', 'studyEvents', 'studyCourses'].includes(event.key)) {
             console.log('Data changed in another tab. Reloading...');
-            
-            // 1. Reload data from the updated Local Storage
             dataManager.loadData();
-            
-            // 2. Refresh the UI to show the changes
             updateAllDisplays();
-            
-            // 3. Refresh Calendar to remove/add event dots
             if (views && typeof views.updateCalendar === 'function') {
                 views.updateCalendar();
             }
         }
     });
 
-    // --- SYNC ENGINE ---
+    // --- SYNC ENGINE (FIXED FOR PWA) ---
     const triggerCloudSync = async (silent = false) => {
         if (!refs.syncBtn) return;
         if (!navigator.onLine) {
-            // Even if silent, if we are offline, we might want to know why it didn't sync
-            // But usually, keep silent to avoid annoyance unless manual click
-            if (!silent) setStatus("Offline (Local Save Only)", true);
+            if (!silent) setStatus("Offline (Local Only)", true);
             return;
         }
 
         try {
-            // Only show "Syncing..." text if it's a manual click (not silent)
             if (!silent) {
                 setStatus("Syncing...");
                 refs.syncBtn.style.opacity = "0.5";
             }
             
-            // Check if we are in Electron or Web environment for sync
+            // 1. ELECTRON MODE
             if (window.ipcRenderer) {
                 const cleanEvents = JSON.parse(JSON.stringify(state.allEvents));
                 const result = await window.ipcRenderer.invoke('google-calendar-sync', cleanEvents);
-                
-                if (result.success && result.stats) {
-                    // Update local IDs with the new Google IDs
-                    if (result.stats.updatedEvents && result.stats.updatedEvents.length > 0) {
-                        result.stats.updatedEvents.forEach(updatedEvent => {
-                            const localIndex = state.allEvents.findIndex(e => e.timestamp === updatedEvent.timestamp);
-                            if(localIndex > -1) {
-                                state.allEvents[localIndex].googleId = updatedEvent.googleId;
-                                state.allEvents[localIndex].isSynced = true;
-                            }
-                        });
-                        dataManager.saveData(); 
-                    }
-                    
-                    // FORCE SHOW "SYNCED" Message even if triggered silently
-                    const totalChanges = result.stats.updatedEvents ? result.stats.updatedEvents.length : 0;
-                    setStatus(totalChanges > 0 ? "Synced" : "Synced (Up to date)");
-                
-                } else {
-                    throw new Error(result.error || "Unknown error.");
-                }
-            } else {
-                // Web/Supabase Sync logic would go here if different from Electron
-                // For now, assuming this function handles the primary sync method
+                handleSyncResult(result, silent);
+            } 
+            // 2. PWA / WEB MODE (FIXED)
+            else {
+                // Call the client-side Google Sync logic
+                const result = await pushEventsToGoogle(state.allEvents);
+                handleSyncResult(result, silent);
             }
 
         } catch (err) {
             console.warn("Auto-Sync Error:", err);
-            // If manual, show error. If silent, only show if it's a critical auth error maybe?
-            // For now, let's show "Sync Failed" so user knows why their calendar isn't updating.
             setStatus("Sync Failed", true); 
         } finally {
             if (refs.syncBtn) refs.syncBtn.style.opacity = "1";
         }
     };
 
-    // --- SMART SYNC CHECKER ---
+    // Helper to process sync results from either Electron or Web
+    const handleSyncResult = (result, silent) => {
+        if (result.success && result.stats) {
+            // Update local IDs with the new Google IDs to prevent duplicates
+            if (result.stats.updatedEvents && result.stats.updatedEvents.length > 0) {
+                let changesMade = false;
+                result.stats.updatedEvents.forEach(updatedEvent => {
+                    const localIndex = state.allEvents.findIndex(e => e.timestamp === updatedEvent.timestamp);
+                    if(localIndex > -1) {
+                        state.allEvents[localIndex].googleId = updatedEvent.googleId;
+                        state.allEvents[localIndex].isSynced = true;
+                        changesMade = true;
+                    }
+                });
+                if (changesMade) dataManager.saveData(); 
+            }
+            
+            const totalChanges = result.stats.updatedEvents ? result.stats.updatedEvents.length : 0;
+            if (!silent || totalChanges > 0) {
+                setStatus(totalChanges > 0 ? "Synced to Google" : "Google Cal: Up to date");
+            }
+        } else {
+            throw new Error(result.error || "Unknown error.");
+        }
+    };
+
     const checkAndTriggerSync = () => {
         const hasAccepted = localStorage.getItem('hasAcceptedSyncTerms');
-        
-        // ONLY trigger auto-sync if they are ALREADY logged in.
         if (hasAccepted === 'true') {
-            triggerCloudSync(true); // Run in background (silent start, visible success)
+            triggerCloudSync(true); 
         }
     };
 
     // --- EVENT LISTENERS ---
 
-    // 1. SAVE EVENT
     refs.saveEventButton.addEventListener('click', () => {
         modals.saveEvent();
         restoreFocus();
         checkAndTriggerSync(); 
     });
 
-    // 2. EDIT EVENT
     refs.saveEditButton.addEventListener('click', () => {
         modals.saveEdit();
         restoreFocus();
         checkAndTriggerSync(); 
     });
 
-    // 3. TASK LIST ACTIONS
     refs.taskList.addEventListener('click', (event) => { 
         const doneBtn = event.target.closest('.task-done-btn'); 
         const recoverBtn = event.target.closest('.task-recover-btn');
@@ -161,10 +144,8 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
             const eventIndex = state.allEvents.findIndex(e => e.timestamp === ts); 
             if (eventIndex > -1) { 
                 state.allEvents[eventIndex].isDone = false;
-                // Reset sync status to force a re-check
                 state.allEvents[eventIndex].isSynced = false; 
                 state.allEvents[eventIndex].googleId = null;  
-                
                 dataManager.saveData(); 
                 updateAllDisplays(); 
                 checkAndTriggerSync(); 
@@ -180,7 +161,6 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
         } 
     });
 
-    // --- DELETE CONFIRMATION ---
     refs.confirmDeleteButton.addEventListener('click', async () => { 
         const identifier = refs.itemToProcess.value; 
         const itemType = refs.itemToProcess.dataset.itemType || 'log'; 
@@ -190,49 +170,39 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
         restoreFocus();
 
         try {
-            // 1. Local Delete (Existing code)
-            if (itemType === 'course') { 
-                modals.deleteCourse(identifier); 
-            } else if (itemType === 'task_permanent') { 
+            // Check if we need to delete from Google Calendar before removing local reference
+            if (itemType === 'task_permanent') {
+                const eventToDelete = state.allEvents.find(e => e.timestamp === identifier);
+                if (eventToDelete && eventToDelete.googleId) {
+                     // Fire and forget delete on cloud (or await if you want strict consistency)
+                     if (window.ipcRenderer) {
+                         // Electron logic (existing)
+                     } else {
+                         deleteSingleEvent(eventToDelete.googleId).catch(err => console.error("Cloud delete fail", err));
+                     }
+                }
+                
                 state.allEvents = state.allEvents.filter(e => e.timestamp !== identifier); 
                 dataManager.saveData(); 
                 updateAllDisplays(); 
+            } else if (itemType === 'course') { 
+                modals.deleteCourse(identifier); 
             } else { 
                 dataManager.deleteItem(identifier); 
                 updateAllDisplays(); 
             }
             setStatus("Deleted");
-
-            // 2. Cloud Delete (NEW FIX)
-            // Check if user is logged in before trying
-            const hasAccepted = localStorage.getItem('hasAcceptedSyncTerms');
-            if (navigator.onLine && hasAccepted === 'true') {
-                
-                // If Electron (existing code)
-                if (window.ipcRenderer && itemType === 'task_permanent') {
-                     // ... existing electron logic ...
-                } 
-                // If Web / Supabase (NEW)
-                else {
-                    // Call the function we just added to dataManager
-                    if (dataManager.deleteFromCloud) {
-                        dataManager.deleteFromCloud(identifier, itemType);
-                    }
-                }
-            }
-
         } catch (e) {
             console.error(e);
             setStatus("Error Deleting", true);
         }
     });
 
-    // --- MANUAL SYNC BUTTON ---
     if(refs.syncBtn) {
         refs.syncBtn.addEventListener('click', () => {
             const hasAccepted = localStorage.getItem('hasAcceptedSyncTerms');
             if (hasAccepted === 'true') {
-                triggerCloudSync(false); // Not silent, show "Syncing..."
+                triggerCloudSync(false); 
                 restoreFocus();
             } else {
                 modals.showSyncOnboarding();
@@ -240,7 +210,6 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
         });
     }
 
-    // --- SYNC MODAL BUTTONS ---
     if (refs.confirmSyncSetupBtn) {
         refs.confirmSyncSetupBtn.addEventListener('click', () => {
             localStorage.setItem('hasAcceptedSyncTerms', 'true');
@@ -256,8 +225,8 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
         });
     }
 
-    // --- LOGOUT BUTTON ---
-    if (refs.googleLogoutBtn) {
+    // --- LOGOUT BUTTON (FIXED FOR PWA) ---
+if (refs.googleLogoutBtn) {
         refs.googleLogoutBtn.addEventListener('click', async () => {
             const originalText = refs.googleLogoutBtn.textContent;
             refs.googleLogoutBtn.textContent = "Disconnecting...";
@@ -268,7 +237,8 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
                 if (window.ipcRenderer) {
                     result = await window.ipcRenderer.invoke('google-auth-logout');
                 } else {
-                    // Handle web logout if applicable
+                    // PWA Logout
+                    handleSignoutClick();
                     result = { success: true }; 
                 }
                 
@@ -276,15 +246,21 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
 
                 if (result.success) {
                     localStorage.removeItem('hasAcceptedSyncTerms');
-                    setStatus("Disconnected");
+                    setStatus("Google Calendar Disconnected");
+                    
+                    // --- OPTIONAL: Reset the UI state immediately ---
+                    // Since the user is now disconnected, the sync button in the header 
+                    // should probably stop showing "Synced" or reset its opacity/state.
+                    // You might want to trigger a UI update here if you have visual indicators.
                 } else {
-                    setStatus("Logout Failed: " + result.error, true);
+                    setStatus("Logout Failed", true);
                 }
             } catch (e) {
                 console.error(e);
                 modals.hideSettingsModal();
             } finally {
-                refs.googleLogoutBtn.textContent = originalText;
+                // Ensure text goes back to normal so it doesn't get stuck on "Disconnecting..."
+                refs.googleLogoutBtn.textContent = "Disconnect Google Calendar";
                 refs.googleLogoutBtn.disabled = false;
                 restoreFocus();
             }

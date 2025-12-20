@@ -10,8 +10,9 @@ import * as tools from './js/tools.js';
 import * as manual from './js/manual.js';
 import * as quotes from './js/quotes.js';
 import * as syncModal from './js/syncModal.js';
-import * as authModal from './js/authModal.js'; // NEW
-import { supabase } from './js/supabaseClient.js'; // NEW
+import * as authModal from './js/authModal.js';
+import { supabase } from './js/supabaseClient.js';
+import { initGoogleClients } from './js/googleSync.js'; // FIX: Import Google Init
 import './js/fa.js'; 
 
 window.state = state;
@@ -22,10 +23,16 @@ function initializeApp() {
     try {
         console.log("Initializing MedChronos PWA...");
 
+        // FIX: Initialize Google API Clients immediately
+        // We use a slight delay to ensure the async scripts in index.html have loaded
+        setTimeout(() => {
+            initGoogleClients();
+        }, 1000);
+
         manual.init();
         quotes.init('quote-container');
         syncModal.inject(); 
-        authModal.injectAuthModal(); // Inject Auth Modal
+        authModal.injectAuthModal();
 
         const updateAllDisplays = () => {
             views.populateCourses(); 
@@ -39,19 +46,18 @@ function initializeApp() {
             if(timers && timers.updatePomodoroDisplay) timers.updatePomodoroDisplay();
         };
 
-        // UI Event listener for the new Cloud Button
+        // UI Event listener for the new Cloud Button (Supabase)
         document.getElementById('cloud-auth-btn').addEventListener('click', async () => {
             const { data } = await supabase.auth.getSession();
             if (data.session) {
-                // If already logged in, maybe ask to logout? 
-                const confirmLogout = confirm("You are logged in. Log out?");
+                const confirmLogout = confirm("You are logged in to Cloud Storage. Log out?");
                 if (confirmLogout) {
                     await supabase.auth.signOut();
                     authModal.updateAuthButtonState(false);
-                    alert("Logged out of Cloud Sync.");
+                    alert("Logged out of Cloud Storage.");
                 }
             } else {
-                modals.hideSettingsModal(); // Close settings to show auth
+                modals.hideSettingsModal();
                 authModal.showAuthModal();
             }
         });
@@ -64,22 +70,24 @@ function initializeApp() {
         timers.init(state, refs, dataManager.logSession, modals.playAlarm, updateAllDisplays, dataManager.saveData, dataManager.saveTimerProgress);
         views.init(state, refs, modals.showEventModal, dataManager.logSession);
         modals.init(state, refs, dataManager, updateAllDisplays, charts.getTimeChartOptions, charts.getScoreChartOptions, charts.getCharts, charts.getTrendChartOptions);
+        
+        // FIX: Pass dataManager to listeners so we can save after sync
         listeners.init(state, refs, timers, modals, charts, views, dataManager, updateAllDisplays);       
+        
         tools.initToolsListeners(); 
         
         // Load Data
         dataManager.loadData();
         dataManager.checkForRecoveredSession();
         
-        // Initial Auth Check
+        // Initial Auth Check (Supabase)
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session) {
                 authModal.updateAuthButtonState(true);
-                dataManager.syncWithSupabase(); // Auto-sync on startup if logged in
+                dataManager.syncWithSupabase();
             }
         });
 
-        // Listen for data updates from sync
         window.addEventListener('data-updated', () => {
             updateAllDisplays();
         });

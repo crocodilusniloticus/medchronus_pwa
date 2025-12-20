@@ -15,6 +15,7 @@ let gisInited = false;
 // --- 1. INITIALIZATION ---
 
 export function initGoogleClients() {
+    console.log("Initializing Google Clients...");
     if (window.google) {
         try {
             tokenClient = window.google.accounts.oauth2.initTokenClient({
@@ -27,6 +28,8 @@ export function initGoogleClients() {
         } catch (err) {
             console.error("GIS Init Failed:", err);
         }
+    } else {
+        console.warn("window.google not found. Scripts may not be loaded yet.");
     }
 
     if (window.gapi) {
@@ -39,19 +42,19 @@ export function initGoogleClients() {
                 gapiInited = true;
                 console.log("GAPI (Data) Initialized");
             } catch (err) {
-                console.error("GAPI Init Failed (Check API Key Restrictions):", err);
-                alert("Google Sync Error: API Key rejected.\n\nIf you see this, go to Google Cloud Console > Credentials > API Key and set 'Application restrictions' to 'None' temporarily.");
+                console.error("GAPI Init Failed:", err);
             }
         });
+    } else {
+        console.warn("window.gapi not found.");
     }
 }
 
 export function handleAuthClick() {
     return new Promise((resolve, reject) => {
-        if (!gisInited) {
-            if (window.google && !tokenClient) initGoogleClients();
-            
-            if(!gisInited) {
+        if (!gisInited || !tokenClient) {
+            initGoogleClients();
+            if(!tokenClient) {
                 alert("Login System not ready. Refresh the page.");
                 return reject("GIS not initialized");
             }
@@ -78,6 +81,7 @@ export function handleSignoutClick() {
     if (token !== null) {
         window.google.accounts.oauth2.revoke(token.access_token);
         window.gapi.client.setToken('');
+        console.log("Google Token Revoked");
     }
 }
 
@@ -85,7 +89,9 @@ export function handleSignoutClick() {
 
 export async function pushEventsToGoogle(localEvents) {
     if (!gisInited) {
-        return { success: false, error: "Login system not loaded. Refresh page." };
+        // Try one last init
+        initGoogleClients();
+        if(!gisInited) return { success: false, error: "Login system not loaded. Refresh page." };
     }
 
     if (!window.gapi.client.getToken()) {
@@ -97,7 +103,7 @@ export async function pushEventsToGoogle(localEvents) {
     }
 
     if (!gapiInited) {
-        return { success: false, error: "API Connection Failed. Check Console for details." };
+        return { success: false, error: "API Connection Failed. Check Console." };
     }
 
     try {
@@ -123,7 +129,7 @@ async function performSync(localEvents) {
             calendarId = newCal.result.id;
         }
     } catch (e) {
-        if (e.status === 403) throw new Error("Permission Denied (Check API Quota or Key Restrictions)");
+        if (e.status === 403) throw new Error("Permission Denied (Check API Quota or Key)");
         throw new Error("Could not access calendar. Check console.");
     }
 
@@ -149,12 +155,29 @@ async function performSync(localEvents) {
 
         try {
             if (localEvent.googleId) {
-                await window.gapi.client.calendar.events.patch({
-                    calendarId: calendarId,
-                    eventId: localEvent.googleId,
-                    resource: resource
-                });
+                // If it already has an ID, we update it
+                try {
+                    await window.gapi.client.calendar.events.patch({
+                        calendarId: calendarId,
+                        eventId: localEvent.googleId,
+                        resource: resource
+                    });
+                } catch (patchErr) {
+                    // If 404/410, it was deleted remotely. Re-create it.
+                    if (patchErr.status === 404 || patchErr.status === 410) {
+                        const res = await window.gapi.client.calendar.events.insert({
+                            calendarId: calendarId,
+                            resource: resource
+                        });
+                        localEvent.googleId = res.result.id;
+                        localEvent.isSynced = true;
+                        updatesToSaveLocally.push(localEvent);
+                    } else {
+                        throw patchErr;
+                    }
+                }
             } else {
+                // New Event -> Insert
                 const res = await window.gapi.client.calendar.events.insert({
                     calendarId: calendarId,
                     resource: resource
@@ -164,67 +187,34 @@ async function performSync(localEvents) {
                 updatesToSaveLocally.push(localEvent);
             }
         } catch (err) {
-            if (err.status === 404 && localEvent.googleId) {
-                try {
-                    localEvent.googleId = null;
-                    const res = await window.gapi.client.calendar.events.insert({
-                        calendarId: calendarId,
-                        resource: resource
-                    });
-                    localEvent.googleId = res.result.id;
-                    localEvent.isSynced = true;
-                    updatesToSaveLocally.push(localEvent);
-                } catch (retryErr) { console.error("Retry failed"); }
-            }
+            console.error(`Failed to sync event: ${localEvent.title}`, err);
         }
-        await sleep(100); 
+        await sleep(150); // Rate limiting
     }
 
     return { updatedEvents: updatesToSaveLocally };
 }
 
 export async function deleteSingleEvent(googleId) {
-    // 1. Ensure API is initialized
-    if (!gapiInited || !gisInited) {
-        return { success: false, error: "Google API not initialized." };
-    }
-
-    // 2. Ensure User is Logged In
-    if (!window.gapi.client.getToken()) {
-        try {
-            await handleAuthClick();
-        } catch (e) {
-            return { success: false, error: "Login required to delete cloud event." };
-        }
-    }
+    if (!gapiInited || !gisInited) return { success: false, error: "API not init" };
+    if (!window.gapi.client.getToken()) return { success: false, error: "Not Logged In" };
 
     try {
-        // 3. Find the 'MedChronos' Calendar ID
         const calendarName = 'MedChronos';
         const calList = await window.gapi.client.calendar.calendarList.list();
         const medCal = calList.result.items.find(c => c.summary === calendarName);
 
-        if (!medCal) {
-            // If the calendar doesn't exist, the event is effectively deleted
-            return { success: true };
-        }
+        if (!medCal) return { success: true };
 
-        // 4. Execute Delete
         await window.gapi.client.calendar.events.delete({
             calendarId: medCal.id,
             eventId: googleId
         });
-
         return { success: true };
 
     } catch (e) {
-        // 5. Handle "Not Found" or "Gone" as success
-        // Google API returns status 404 or 410 if the event is already deleted
-        if (e.status === 404 || e.status === 410) {
-            return { success: true };
-        }
-
-        console.error("Delete single failed:", e);
-        return { success: false, error: e.message || "Failed to delete remote event." };
+        if (e.status === 404 || e.status === 410) return { success: true };
+        console.error("Delete failed:", e);
+        return { success: false, error: e.message };
     }
 }

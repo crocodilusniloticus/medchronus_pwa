@@ -15,23 +15,22 @@ let gisInited = false;
 // --- 1. INITIALIZATION ---
 
 export function initGoogleClients() {
-    console.log("Initializing Google Clients...");
+    // GIS (Identity Services) - Handles Login/Token
     if (window.google) {
         try {
             tokenClient = window.google.accounts.oauth2.initTokenClient({
                 client_id: CLIENT_ID,
                 scope: SCOPES,
-                callback: '', 
+                callback: '', // Defined at request time
             });
             gisInited = true;
             console.log("GIS (Login) Initialized");
         } catch (err) {
             console.error("GIS Init Failed:", err);
         }
-    } else {
-        console.warn("window.google not found. Scripts may not be loaded yet.");
     }
 
+    // GAPI (Client Library) - Handles Calendar Data
     if (window.gapi) {
         window.gapi.load('client', async () => {
             try {
@@ -45,32 +44,38 @@ export function initGoogleClients() {
                 console.error("GAPI Init Failed:", err);
             }
         });
-    } else {
-        console.warn("window.gapi not found.");
     }
 }
 
+// --- 2. AUTH FLOW ---
+
 export function handleAuthClick() {
     return new Promise((resolve, reject) => {
+        // Retry Init if needed
+        if (!gisInited || !tokenClient) initGoogleClients();
+        
         if (!gisInited || !tokenClient) {
-            initGoogleClients();
-            if(!tokenClient) {
-                alert("Login System not ready. Refresh the page.");
-                return reject("GIS not initialized");
-            }
+            alert("Google Services are still loading. Please wait a moment and try again.");
+            return reject("GIS not initialized");
         }
 
+        // Define the callback for THIS specific request
         tokenClient.callback = async (resp) => {
             if (resp.error) {
+                console.error("Google Auth Error:", resp);
                 reject(resp);
-                throw resp;
+            } else {
+                resolve(resp);
             }
-            resolve(resp);
         };
 
-        if (window.gapi.client.getToken() === null) {
+        // Check if we already have a token
+        if (window.gapi && window.gapi.client.getToken() === null) {
+            // Trigger Popup
+            // 'consent' forces the popup to appear if not signed in
             tokenClient.requestAccessToken({ prompt: 'consent' });
         } else {
+            // Refresh token silently
             tokenClient.requestAccessToken({ prompt: '' });
         }
     });
@@ -81,31 +86,29 @@ export function handleSignoutClick() {
     if (token !== null) {
         window.google.accounts.oauth2.revoke(token.access_token);
         window.gapi.client.setToken('');
-        console.log("Google Token Revoked");
     }
 }
 
-// --- 2. SYNC LOGIC ---
+// --- 3. SYNC LOGIC ---
 
 export async function pushEventsToGoogle(localEvents) {
-    if (!gisInited) {
-        // Try one last init
-        initGoogleClients();
-        if(!gisInited) return { success: false, error: "Login system not loaded. Refresh page." };
+    // 1. Check Clients
+    if (!gapiInited) {
+        // Try waiting 1 second
+        await new Promise(r => setTimeout(r, 1000));
+        if (!gapiInited) return { success: false, error: "Google API not connected." };
     }
 
+    // 2. Check Auth
     if (!window.gapi.client.getToken()) {
         try {
             await handleAuthClick(); 
         } catch (e) {
-            return { success: false, error: "Login Cancelled" };
+            return { success: false, error: "Login Cancelled or Failed" };
         }
     }
 
-    if (!gapiInited) {
-        return { success: false, error: "API Connection Failed. Check Console." };
-    }
-
+    // 3. Perform Sync
     try {
         const stats = await performSync(localEvents);
         return { success: true, stats };
@@ -119,6 +122,7 @@ async function performSync(localEvents) {
     const calendarName = 'MedChronos';
     let calendarId = null;
 
+    // Get or Create Calendar
     try {
         const calList = await window.gapi.client.calendar.calendarList.list();
         const medCal = calList.result.items.find(c => c.summary === calendarName);
@@ -129,8 +133,8 @@ async function performSync(localEvents) {
             calendarId = newCal.result.id;
         }
     } catch (e) {
-        if (e.status === 403) throw new Error("Permission Denied (Check API Quota or Key)");
-        throw new Error("Could not access calendar. Check console.");
+        if (e.status === 403) throw new Error("Permission Denied (Check API Quota)");
+        throw new Error("Calendar Access Failed");
     }
 
     const activeLocalEvents = localEvents.filter(e => !e.isDone && e.date);
@@ -146,6 +150,7 @@ async function performSync(localEvents) {
             colorId: localEvent.priority === 'high' ? '11' : (localEvent.priority === 'medium' ? '6' : '9')
         };
 
+        // Fix End Date (Google needs exclusive end date for all-day events)
         const endDateObj = new Date(localEvent.date);
         endDateObj.setDate(endDateObj.getDate() + 1);
         const y = endDateObj.getFullYear();
@@ -155,7 +160,7 @@ async function performSync(localEvents) {
 
         try {
             if (localEvent.googleId) {
-                // If it already has an ID, we update it
+                // Update Existing
                 try {
                     await window.gapi.client.calendar.events.patch({
                         calendarId: calendarId,
@@ -163,7 +168,7 @@ async function performSync(localEvents) {
                         resource: resource
                     });
                 } catch (patchErr) {
-                    // If 404/410, it was deleted remotely. Re-create it.
+                    // If 404 (Deleted on Google), Re-create it
                     if (patchErr.status === 404 || patchErr.status === 410) {
                         const res = await window.gapi.client.calendar.events.insert({
                             calendarId: calendarId,
@@ -172,12 +177,10 @@ async function performSync(localEvents) {
                         localEvent.googleId = res.result.id;
                         localEvent.isSynced = true;
                         updatesToSaveLocally.push(localEvent);
-                    } else {
-                        throw patchErr;
                     }
                 }
             } else {
-                // New Event -> Insert
+                // Insert New
                 const res = await window.gapi.client.calendar.events.insert({
                     calendarId: calendarId,
                     resource: resource
@@ -187,23 +190,21 @@ async function performSync(localEvents) {
                 updatesToSaveLocally.push(localEvent);
             }
         } catch (err) {
-            console.error(`Failed to sync event: ${localEvent.title}`, err);
+            console.error(`Sync error for ${localEvent.title}:`, err);
         }
-        await sleep(150); // Rate limiting
+        await sleep(150); // Rate limit protection
     }
 
     return { updatedEvents: updatesToSaveLocally };
 }
 
 export async function deleteSingleEvent(googleId) {
-    if (!gapiInited || !gisInited) return { success: false, error: "API not init" };
-    if (!window.gapi.client.getToken()) return { success: false, error: "Not Logged In" };
+    if (!gapiInited || !gisInited) return { success: false };
+    if (!window.gapi.client.getToken()) return { success: false };
 
     try {
-        const calendarName = 'MedChronos';
         const calList = await window.gapi.client.calendar.calendarList.list();
-        const medCal = calList.result.items.find(c => c.summary === calendarName);
-
+        const medCal = calList.result.items.find(c => c.summary === 'MedChronos');
         if (!medCal) return { success: true };
 
         await window.gapi.client.calendar.events.delete({
@@ -211,10 +212,7 @@ export async function deleteSingleEvent(googleId) {
             eventId: googleId
         });
         return { success: true };
-
     } catch (e) {
-        if (e.status === 404 || e.status === 410) return { success: true };
-        console.error("Delete failed:", e);
-        return { success: false, error: e.message };
+        return { success: true }; // Treat 404/errors as "already deleted"
     }
 }

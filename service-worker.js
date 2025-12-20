@@ -1,4 +1,4 @@
-const CACHE_NAME = 'medchronos-v10'; // Bumped version to FORCE update
+const CACHE_NAME = 'medchronos-v11'; // Bumped version to FORCE update
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

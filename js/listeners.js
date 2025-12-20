@@ -1,4 +1,4 @@
-import { pushEventsToGoogle, handleSignoutClick, deleteSingleEvent } from './googleSync.js'; // FIX: Import logic
+import { pushEventsToGoogle, handleSignoutClick, deleteSingleEvent } from './googleSync.js'; 
 
 let refs, timers, modals, charts, views, dataManager, state, updateAllDisplays;
 let statusTimeout = null; 
@@ -41,7 +41,7 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
         }
     });
 
-    // --- SYNC ENGINE (FIXED FOR PWA) ---
+    // --- SYNC ENGINE ---
     const triggerCloudSync = async (silent = false) => {
         if (!refs.syncBtn) return;
         if (!navigator.onLine) {
@@ -55,15 +55,11 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
                 refs.syncBtn.style.opacity = "0.5";
             }
             
-            // 1. ELECTRON MODE
             if (window.ipcRenderer) {
                 const cleanEvents = JSON.parse(JSON.stringify(state.allEvents));
                 const result = await window.ipcRenderer.invoke('google-calendar-sync', cleanEvents);
                 handleSyncResult(result, silent);
-            } 
-            // 2. PWA / WEB MODE (FIXED)
-            else {
-                // Call the client-side Google Sync logic
+            } else {
                 const result = await pushEventsToGoogle(state.allEvents);
                 handleSyncResult(result, silent);
             }
@@ -76,10 +72,8 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
         }
     };
 
-    // Helper to process sync results from either Electron or Web
     const handleSyncResult = (result, silent) => {
         if (result.success && result.stats) {
-            // Update local IDs with the new Google IDs to prevent duplicates
             if (result.stats.updatedEvents && result.stats.updatedEvents.length > 0) {
                 let changesMade = false;
                 result.stats.updatedEvents.forEach(updatedEvent => {
@@ -170,28 +164,37 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
         restoreFocus();
 
         try {
-            // Check if we need to delete from Google Calendar before removing local reference
+            // FIX: Handle Event/Task Deletion
             if (itemType === 'task_permanent') {
                 const eventToDelete = state.allEvents.find(e => e.timestamp === identifier);
+                
+                // 1. Delete from Google Calendar (Fire and Forget)
                 if (eventToDelete && eventToDelete.googleId) {
-                     // Fire and forget delete on cloud (or await if you want strict consistency)
-                     if (window.ipcRenderer) {
-                         // Electron logic (existing)
-                     } else {
+                     if (!window.ipcRenderer) {
                          deleteSingleEvent(eventToDelete.googleId).catch(err => console.error("Cloud delete fail", err));
                      }
                 }
                 
+                // 2. Delete from Local State
                 state.allEvents = state.allEvents.filter(e => e.timestamp !== identifier); 
-                dataManager.saveData(); 
+                
+                // 3. CRITICAL FIX: FORCE PUSH TO SUPABASE
+                // pass 'true' to saveData to tell it "Overwrite the cloud, do not merge".
+                await dataManager.saveData(true); 
+                
                 updateAllDisplays(); 
-            } else if (itemType === 'course') { 
+                setStatus("Deadline Deleted");
+            } 
+            else if (itemType === 'course') { 
                 modals.deleteCourse(identifier); 
-            } else { 
-                dataManager.deleteItem(identifier); 
+                setStatus("Course Deleted");
+            } 
+            else { 
+                // This function already handles force push internally
+                await dataManager.deleteItem(identifier); 
                 updateAllDisplays(); 
+                setStatus("Log Deleted");
             }
-            setStatus("Deleted");
         } catch (e) {
             console.error(e);
             setStatus("Error Deleting", true);
@@ -225,8 +228,7 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
         });
     }
 
-    // --- LOGOUT BUTTON (FIXED FOR PWA) ---
-if (refs.googleLogoutBtn) {
+    if (refs.googleLogoutBtn) {
         refs.googleLogoutBtn.addEventListener('click', async () => {
             const originalText = refs.googleLogoutBtn.textContent;
             refs.googleLogoutBtn.textContent = "Disconnecting...";
@@ -237,7 +239,6 @@ if (refs.googleLogoutBtn) {
                 if (window.ipcRenderer) {
                     result = await window.ipcRenderer.invoke('google-auth-logout');
                 } else {
-                    // PWA Logout
                     handleSignoutClick();
                     result = { success: true }; 
                 }
@@ -247,11 +248,6 @@ if (refs.googleLogoutBtn) {
                 if (result.success) {
                     localStorage.removeItem('hasAcceptedSyncTerms');
                     setStatus("Google Calendar Disconnected");
-                    
-                    // --- OPTIONAL: Reset the UI state immediately ---
-                    // Since the user is now disconnected, the sync button in the header 
-                    // should probably stop showing "Synced" or reset its opacity/state.
-                    // You might want to trigger a UI update here if you have visual indicators.
                 } else {
                     setStatus("Logout Failed", true);
                 }
@@ -259,7 +255,6 @@ if (refs.googleLogoutBtn) {
                 console.error(e);
                 modals.hideSettingsModal();
             } finally {
-                // Ensure text goes back to normal so it doesn't get stuck on "Disconnecting..."
                 refs.googleLogoutBtn.textContent = "Disconnect Google Calendar";
                 refs.googleLogoutBtn.disabled = false;
                 restoreFocus();
@@ -267,7 +262,6 @@ if (refs.googleLogoutBtn) {
         });
     }
 
-    // --- STANDARD UI LISTENERS ---
     const handleCourseChange = (event) => { const newCourse = event.target.value; state.lastSelectedCourse = newCourse; refs.courseSelect.value = newCourse; refs.scoreCourseSelect.value = newCourse; refs.pomodoroCourseSelect.value = newCourse; refs.countdownCourseSelect.value = newCourse; dataManager.saveLastSelectedCourse(); };
     refs.courseSelect.addEventListener('change', handleCourseChange); refs.scoreCourseSelect.addEventListener('change', handleCourseChange); refs.pomodoroCourseSelect.addEventListener('change', handleCourseChange); refs.countdownCourseSelect.addEventListener('change', handleCourseChange);
     

@@ -63,10 +63,8 @@ export function saveTimerProgress() {
     }
 }
 
-// -------------------------------------------------------------------------
-// FIX: Added 'forcePush' to skip merging when we just deleted something
-// -------------------------------------------------------------------------
 export async function saveData(forcePush = false) {
+    // 1. Save to Local Storage (Instant)
     localStorage.setItem('studySessions', JSON.stringify(state.allSessions));
     localStorage.setItem('studyScores', JSON.stringify(state.allScores));
     localStorage.setItem('studyEvents', JSON.stringify(state.allEvents));
@@ -86,7 +84,8 @@ export async function saveData(forcePush = false) {
     saveTimerProgress();
     calculateStreak();
 
-    // Pass the forcePush flag to the sync function
+    // 2. Trigger Cloud Sync
+    // If forcePush is true, we await it to ensure deletion happens before anything else.
     await syncWithSupabase(forcePush);
 }
 
@@ -123,7 +122,6 @@ export function loadData() {
 
     let savedAlarm = localStorage.getItem('alarmSound') || '';
     if (savedAlarm && refs.alarmSound) {
-        // PWA restriction: can't usually load absolute file paths, but if local setup allows:
         refs.alarmSound.src = savedAlarm;
     }
 
@@ -138,24 +136,23 @@ export function loadData() {
 }
 
 // -------------------------------------------------------------------------
-// FIX: Modified Sync to handle Deletions correctly
+// SYNC ENGINE
 // -------------------------------------------------------------------------
 export async function syncWithSupabase(forcePush = false) {
     if (isSyncing || !navigator.onLine) return;
     
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return; // Not logged in
+    if (!user) return; 
 
     isSyncing = true;
-    updateSyncStatus("Syncing Cloud...", false);
+    updateSyncStatus(forcePush ? "Deleting..." : "Syncing...", false);
 
     try {
         let merged = false;
 
-        // ONLY fetch data if we are NOT force pushing.
-        // If forcePush is true (e.g. after a delete), we assume local data is the authority.
+        // STEP 1: Fetch Cloud Data (ONLY if NOT force pushing)
+        // If forcePush is true, we assume Local is the authority (e.g., after a delete)
         if (!forcePush) {
-            // 1. Fetch Cloud Data
             const { data: cloudRow, error } = await supabase
                 .from('user_data')
                 .select('content')
@@ -169,10 +166,11 @@ export async function syncWithSupabase(forcePush = false) {
             if (cloudRow && cloudRow.content) {
                 const cloudData = cloudRow.content;
                 
-                // 2. Smart Merge (Deduplicate based on timestamp)
+                // Smart Merge Logic
                 const mergeArrays = (localArr, cloudArr) => {
                     const map = new Map();
-                    [...localArr, ...cloudArr].forEach(item => {
+                    // Local items take precedence if timestamps match
+                    [...cloudArr, ...localArr].forEach(item => {
                         if (item.timestamp) map.set(item.timestamp, item);
                     });
                     return Array.from(map.values());
@@ -183,7 +181,7 @@ export async function syncWithSupabase(forcePush = false) {
                 const mergedEvents = mergeArrays(state.allEvents, cloudData.events || []);
                 const mergedCourses = [...new Set([...state.allCourses, ...(cloudData.courses || [])])].sort();
 
-                // Detect if we actually changed anything locally
+                // Check for differences
                 if (mergedSessions.length !== state.allSessions.length || 
                     mergedScores.length !== state.allScores.length || 
                     mergedEvents.length !== state.allEvents.length) {
@@ -193,15 +191,14 @@ export async function syncWithSupabase(forcePush = false) {
                     state.allEvents = mergedEvents;
                     state.allCourses = mergedCourses;
                     
-                    // Update local storage without triggering another sync loop
-                    saveData(false); // forcePush = false here to avoid infinite loop
+                    // Save merged data locally without triggering another sync loop
+                    saveData(false); 
                     merged = true;
                 }
             }
         }
 
-        // 3. Push Data to Cloud (Upsert)
-        // If forcePush was true, we skipped step 1 & 2, so we are overwriting cloud with local state.
+        // STEP 2: Push Local Data to Cloud (Overwrite)
         const payload = {
             sessions: state.allSessions,
             scores: state.allScores,
@@ -219,14 +216,14 @@ export async function syncWithSupabase(forcePush = false) {
 
         if (upsertError) throw upsertError;
 
-        updateSyncStatus(merged ? "Cloud Merged" : "Cloud Saved", false);
+        updateSyncStatus(forcePush ? "Item Deleted" : (merged ? "Cloud Merged" : "Cloud Saved"), false);
 
     } catch (err) {
         console.error("Supabase Sync Error:", err);
         updateSyncStatus("Cloud Error", true);
     } finally {
         isSyncing = false;
-        // Trigger UI refresh if data changed
+        // Trigger UI refresh
         window.dispatchEvent(new CustomEvent('data-updated'));
     }
 }
@@ -238,18 +235,19 @@ function updateSyncStatus(msg, isError) {
         refs.syncStatus.style.color = isError ? 'var(--danger)' : 'var(--success)';
         setTimeout(() => { 
             if(refs.syncStatus) refs.syncStatus.style.opacity = '0'; 
-        }, 4000);
+        }, 3000);
     }
 }
 
-// --- STANDARD FUNCTIONS ---
+// -------------------------------------------------------------------------
+// STANDARD LOGIC
+// -------------------------------------------------------------------------
 
 export function calculateStreak() {
     if (!state.allSessions || state.allSessions.length === 0) {
         state.streakCount = 0;
         return;
     }
-
     const dailyTotals = {};
     state.allSessions.forEach(s => {
         const dateStr = getLocalISODateString(new Date(s.timestamp));
@@ -258,7 +256,6 @@ export function calculateStreak() {
 
     const targetHours = state.heatmapTargetHours || 8;
     const minSeconds = targetHours * 3600;
-
     const validDates = Object.keys(dailyTotals).filter(date => dailyTotals[date] >= minSeconds);
     const sortedDates = validDates.sort((a, b) => new Date(b) - new Date(a)); 
 
@@ -307,7 +304,6 @@ export function exportData() {
             pomodoroSettings: JSON.parse(localStorage.getItem('pomodoroSettings'))
         }
     };
-
     const dataStr = JSON.stringify(data, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -339,7 +335,6 @@ export function importData(file) {
                 state.lastSelectedCourse = data.preferences.lastCourse;
                 if (data.preferences.pomodoroSettings) localStorage.setItem('pomodoroSettings', JSON.stringify(data.preferences.pomodoroSettings));
             }
-
             saveData(); 
             alert("Data imported successfully! Reloading...");
             window.location.reload();
@@ -358,7 +353,6 @@ export function checkForRecoveredSession() {
         localStorage.removeItem('activeTimer');
         return;
     }
-
     let elapsedSeconds = 0;
     let course = '', notes = '', timestamp = '';
     
@@ -390,15 +384,17 @@ export function checkForRecoveredSession() {
 }
 
 // -------------------------------------------------------------------------
-// FIX: Call saveData(true) to force Cloud Overwrite
+// FIX: Delete Item with Force Push
 // -------------------------------------------------------------------------
-export function deleteItem(timestamp) { 
+export async function deleteItem(timestamp) { 
+    // 1. Remove from local state
     state.allSessions = state.allSessions.filter(i => i.timestamp !== timestamp); 
     state.allScores = state.allScores.filter(i => i.timestamp !== timestamp); 
     state.allEvents = state.allEvents.filter(i => i.timestamp !== timestamp); 
     
-    // Pass TRUE to force overwrite cloud data (preventing zombie resurrection)
-    saveData(true); 
+    // 2. FORCE PUSH to cloud (True = overwrite cloud with local, do not merge)
+    // This prevents the "Zombie" item from coming back
+    await saveData(true); 
 }
 
 export function logSession(course, seconds, notes, startTimeStamp) { 

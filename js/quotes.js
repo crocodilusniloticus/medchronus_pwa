@@ -194,7 +194,7 @@ function render() {
     }, 300);
 }
 
-function init(containerId) {
+export function init(containerId) {
     state.container = document.getElementById(containerId);
     if (!state.container) return;
 
@@ -214,5 +214,3 @@ function init(containerId) {
     if (navigator.onLine) fetchAndFilterQuotes();
     setInterval(render, 1000); 
 }
-
-module.exports = { init };

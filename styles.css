@@ -609,6 +609,10 @@ body {
     background-color: var(--card-timer-bg);
     border: 1px solid var(--timer-border); 
     box-shadow: var(--shadow-md);
+    
+    /* ADD THESE */
+    max-height: 687px;    /* Adjust height as needed */
+        /* Prevents the card from stretching to the bottom */
 }
 
 /* History Log: The "Leather Book" */
@@ -623,6 +627,7 @@ body {
     border-left: 4px solid var(--card-log-accent); /* Binding */
     font-family: 'Courier New', Courier, monospace; 
     color: var(--card-log-accent);
+    max-height: 687px;    /* Adjust height as needed */
 }
 .log-card .card-header h3 { 
     color: var(--card-log-accent); 
@@ -667,6 +672,7 @@ body {
     border: 1px solid var(--breath-border);
     border-radius: var(--radius);
     overflow: hidden;
+    max-height: 513px;
 }
 
 
@@ -1266,4 +1272,11 @@ body.focus-mode .timer-panel .modern-textarea {
 
 .calendar-card .flatpickr-day.priority-medium .jalaali-date {
     color: rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Disable max-heights when in Full Screen / Focus / Zen modes */
+body.focus-mode .timer-card,
+body.breathing-mode .breathing-card {
+    max-height: none !important;
+    align-self: stretch !important;
 }

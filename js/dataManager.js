@@ -1,18 +1,18 @@
-const { getLocalISODateString } = require('./utils');
+import { getLocalISODateString } from './utils.js';
 let state, refs;
 
-function init(appState, uiRefs) {
+export function init(appState, uiRefs) {
     state = appState;
     refs = uiRefs;
 }
 
-function saveLastSelectedCourse() {
+export function saveLastSelectedCourse() {
     if (state.lastSelectedCourse) {
         localStorage.setItem('lastSelectedCourse', state.lastSelectedCourse);
     }
 }
 
-function saveTimerProgress() {
+export function saveTimerProgress() {
     let activeTimerData = null;
 
     if (state.isStopwatchRunning || state.isStopwatchPaused) {
@@ -21,10 +21,7 @@ function saveTimerProgress() {
             startTime: state.stopwatchStartTime,
             isPaused: state.isStopwatchPaused,
             pausedSeconds: state.stopwatchSeconds, 
-            context: {
-                course: refs.courseSelect.value,
-                notes: refs.sessionNotes.value.trim()
-            }
+            context: { course: refs.courseSelect.value, notes: refs.sessionNotes.value.trim() }
         };
     } else if (state.pomodoroState !== 'idle') {
         activeTimerData = {
@@ -34,10 +31,7 @@ function saveTimerProgress() {
             isPaused: state.isPomodoroPaused,
             pausedRemainingSeconds: state.isPomodoroPaused ? state.pomodoroPausedTime : state.pomodoroSecondsLeft,
             pomodoroState: state.pomodoroState,
-            context: {
-                course: refs.pomodoroCourseSelect.value,
-                notes: refs.pomodoroNotes.value.trim()
-            }
+            context: { course: refs.pomodoroCourseSelect.value, notes: refs.pomodoroNotes.value.trim() }
         };
     } else if (state.isCountdownRunning || state.isCountdownPaused) {
         activeTimerData = {
@@ -46,10 +40,7 @@ function saveTimerProgress() {
             originalDuration: state.countdownOriginalDuration,
             isPaused: state.isCountdownPaused,
             pausedRemainingSeconds: state.isCountdownPaused ? state.countdownPausedTime : state.countdownSecondsLeft,
-            context: {
-                course: refs.countdownCourseSelect.value,
-                notes: refs.countdownNotes.value.trim()
-            }
+            context: { course: refs.countdownCourseSelect.value, notes: refs.countdownNotes.value.trim() }
         };
     }
 
@@ -60,7 +51,7 @@ function saveTimerProgress() {
     }
 }
 
-function saveData() { 
+export function saveData() { 
     localStorage.setItem('studySessions', JSON.stringify(state.allSessions)); 
     localStorage.setItem('studyScores', JSON.stringify(state.allScores)); 
     localStorage.setItem('studyEvents', JSON.stringify(state.allEvents));
@@ -70,7 +61,6 @@ function saveData() {
     localStorage.setItem('heatmapTargetHours', state.heatmapTargetHours);
     localStorage.setItem('heatmapOverdriveHours', state.heatmapOverdriveHours);
 
-    // *** NEW: Save Pomodoro Settings ***
     const pomodoroSettings = {
         focus: state.pomodoroFocusDuration,
         shortBreak: state.pomodoroShortBreakDuration,
@@ -82,7 +72,7 @@ function saveData() {
     calculateStreak(); 
 }
 
-function loadData() { 
+export function loadData() { 
     state.allSessions = (JSON.parse(localStorage.getItem('studySessions')) || [])
         .filter(s => s && s.timestamp && s.course); 
     state.allScores = (JSON.parse(localStorage.getItem('studyScores')) || [])
@@ -106,7 +96,6 @@ function loadData() {
     state.heatmapTargetHours = parseInt(localStorage.getItem('heatmapTargetHours')) || 8;
     state.heatmapOverdriveHours = parseInt(localStorage.getItem('heatmapOverdriveHours')) || 10;
 
-    // *** NEW: Load Pomodoro Settings ***
     const savedPomo = JSON.parse(localStorage.getItem('pomodoroSettings'));
     if (savedPomo) {
         state.pomodoroFocusDuration = savedPomo.focus || 50;
@@ -114,11 +103,24 @@ function loadData() {
         state.pomodoroLongBreakDuration = savedPomo.longBreak || 20;
     }
 
-    const savedAlarm = localStorage.getItem('alarmSound') || '';
-    if (savedAlarm) {
-        refs.alarmSound.src = 'file://' + savedAlarm;
-        refs.selectedAlarmFile.textContent = savedAlarm.split('\\').pop().split('/').pop();
+    // --- FIX: SANITIZE AUDIO PATH FOR BROWSER ---
+    let savedAlarm = localStorage.getItem('alarmSound') || '';
+    
+    // Check for Electron-style local paths (e.g., "file://", "C:\", or simple absolute paths not starting with http/blob)
+    const isInvalidWebPath = savedAlarm.startsWith('file:') || 
+                             savedAlarm.includes(':\\') || 
+                             (savedAlarm.startsWith('/') && !savedAlarm.startsWith('/sounds')); // Assuming local sounds might be in /sounds
+
+    if (isInvalidWebPath) {
+        console.warn("Cleared invalid local audio path:", savedAlarm);
+        savedAlarm = '';
+        localStorage.removeItem('alarmSound');
     }
+    
+    if (savedAlarm && refs.alarmSound) {
+        refs.alarmSound.src = savedAlarm; 
+    }
+    // ---------------------------------------------
 
     const savedCountdown = JSON.parse(localStorage.getItem('countdownValues'));
     if (savedCountdown) {
@@ -130,7 +132,7 @@ function loadData() {
     calculateStreak();
 }
 
-function calculateStreak() {
+export function calculateStreak() {
     if (!state.allSessions || state.allSessions.length === 0) {
         state.streakCount = 0;
         return;
@@ -142,14 +144,12 @@ function calculateStreak() {
         dailyTotals[dateStr] = (dailyTotals[dateStr] || 0) + (s.seconds || 0);
     });
 
-    // CHANGE: Use Heatmap Target (Hours) converted to seconds
     const targetHours = state.heatmapTargetHours || 8;
     const minSeconds = targetHours * 3600;
 
     const validDates = Object.keys(dailyTotals).filter(date => dailyTotals[date] >= minSeconds);
     const sortedDates = validDates.sort((a, b) => new Date(b) - new Date(a)); 
 
-    // ... rest of the function remains the same ...
     if (sortedDates.length === 0) {
         state.streakCount = 0;
         return;
@@ -183,7 +183,7 @@ function calculateStreak() {
     state.streakCount = streak;
 }
 
-function exportData() {
+export function exportData() {
     const data = {
         sessions: state.allSessions,
         scores: state.allScores,
@@ -197,8 +197,8 @@ function exportData() {
  
             lastCourse: state.lastSelectedCourse,
             countdown: JSON.parse(localStorage.getItem('countdownValues')),
-            alarmSound: localStorage.getItem('alarmSound'),
-            // *** NEW: Export Pomodoro Settings ***
+            // Don't export Blob URLs or local paths for alarmSound
+            alarmSound: null, 
             pomodoroSettings: {
                 focus: state.pomodoroFocusDuration,
                 shortBreak: state.pomodoroShortBreakDuration,
@@ -220,7 +220,7 @@ function exportData() {
     URL.revokeObjectURL(url);
 }
 
-function importData(file) {
+export function importData(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
@@ -242,10 +242,8 @@ function importData(file) {
                 state.heatmapOverdriveHours = data.preferences.heatmapHero || 10;
 
                 state.lastSelectedCourse = data.preferences.lastCourse;
-                if (data.preferences.alarmSound) localStorage.setItem('alarmSound', data.preferences.alarmSound);
                 if (data.preferences.countdown) localStorage.setItem('countdownValues', JSON.stringify(data.preferences.countdown));
                 
-                // *** NEW: Import Pomodoro Settings ***
                 if (data.preferences.pomodoroSettings) {
                     state.pomodoroFocusDuration = data.preferences.pomodoroSettings.focus || 50;
                     state.pomodoroShortBreakDuration = data.preferences.pomodoroSettings.shortBreak || 10;
@@ -265,7 +263,7 @@ function importData(file) {
     reader.readAsText(file);
 }
 
-function checkForRecoveredSession() {
+export function checkForRecoveredSession() {
     const recoveredTimer = JSON.parse(localStorage.getItem('activeTimer'));
     if (!recoveredTimer || !recoveredTimer.startTime) {
         localStorage.removeItem('activeTimer');
@@ -310,14 +308,14 @@ function checkForRecoveredSession() {
     localStorage.removeItem('activeTimer'); 
 }
 
-function deleteItem(timestamp) { 
+export function deleteItem(timestamp) { 
     state.allSessions = state.allSessions.filter(i => i.timestamp !== timestamp); 
     state.allScores = state.allScores.filter(i => i.timestamp !== timestamp); 
     state.allEvents = state.allEvents.filter(i => i.timestamp !== timestamp); 
     saveData(); 
 }
 
-function logSession(course, seconds, notes, startTimeStamp) { 
+export function logSession(course, seconds, notes, startTimeStamp) { 
     state.allSessions.push({ 
         type:'session',
         course: course,
@@ -330,7 +328,7 @@ function logSession(course, seconds, notes, startTimeStamp) {
     refs.sessionNotes.value = ''; 
 }
 
-function logScore() { 
+export function logScore() { 
     const s = parseInt(refs.scoreInput.value, 10); 
     if(isNaN(s) || s < 0 || s > 100){
         refs.scoreError.textContent = 'Score must be a number from 0-100.';
@@ -344,24 +342,9 @@ function logScore() {
     return true;
 }
 
-function formatTime(sec) { 
+export function formatTime(sec) { 
     const h=Math.floor(sec/3600).toString().padStart(2,'0'); 
     const m=Math.floor((sec%3600)/60).toString().padStart(2,'0'); 
     const s=(sec%60).toString().padStart(2,'0'); 
     return `${h}:${m}:${s}`; 
 }
-
-module.exports = {
-    init, 
-    saveData, 
-    saveTimerProgress, 
-    loadData, 
-    checkForRecoveredSession, 
-    deleteItem, 
-    logSession, 
-    logScore, 
-    formatTime,
-    saveLastSelectedCourse,
-    exportData,
-    importData
-};

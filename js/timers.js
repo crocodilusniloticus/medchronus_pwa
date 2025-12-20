@@ -1,7 +1,8 @@
-let state, refs, logSession, playAlarm, updateAllDisplays, saveData, saveTimerProgress;
-const modals = require('./modals'); 
+import * as modals from './modals.js'; 
 
-function init(appState, uiRefs, logSessionFn, playAlarmFn, updateAllDisplaysFn, saveDataFn, saveTimerProgressFn) {
+let state, refs, logSession, playAlarm, updateAllDisplays, saveData, saveTimerProgress;
+
+export function init(appState, uiRefs, logSessionFn, playAlarmFn, updateAllDisplaysFn, saveDataFn, saveTimerProgressFn) {
     state = appState;
     refs = uiRefs;
     logSession = logSessionFn;
@@ -53,7 +54,7 @@ function updateTimerTabIndicators() {
     refs.btnTimerCountdown.classList.toggle('running', state.isCountdownRunning || state.isCountdownPaused);
 }
 
-function updatePomodoroDisplay() {
+export function updatePomodoroDisplay() {
     if (state.pomodoroState === 'idle') {
         state.pomodoroSecondsLeft = state.pomodoroFocusDuration * 60;
         refs.pomodoroTimerDisplay.textContent = formatCountdown(state.pomodoroSecondsLeft);
@@ -67,14 +68,19 @@ function stopAndLogRunningTimers(excludeTimerType) {
 }
 
 // --- STOPWATCH ---
-function startTimer() { 
+export function startTimer() { 
     stopAndLogRunningTimers('stopwatch');
     
     if (state.isStopwatchRunning) {
         // Pause logic
         pauseTimer();
+    } else if (state.isStopwatchPaused) {
+        // Resume logic
+        state.isStopwatchRunning = true; 
+        state.isStopwatchPaused = false;
+        refs.startButton.textContent = "Pause";
     } else {
-        // Start fresh OR Resume
+        // Start fresh
         state.isStopwatchRunning = true; 
         state.isStopwatchPaused = false;
         refs.startButton.textContent = "Pause"; 
@@ -97,13 +103,13 @@ function startTimer() {
     updateTimerTabIndicators(); saveTimerProgress(); 
 }
 
-function pauseTimer() {
+export function pauseTimer() {
     clearInterval(state.stopwatchTimer);
     state.isStopwatchRunning = false; state.isStopwatchPaused = true;
     refs.startButton.textContent = "Resume"; updateTimerTabIndicators(); saveTimerProgress(); 
 }
     
-function stopTimer() { 
+export function stopTimer() { 
     clearInterval(state.stopwatchTimer); 
     if (state.stopwatchStartTime && state.stopwatchSeconds >= 1) {
         refs.timerError.textContent = ""; 
@@ -114,7 +120,7 @@ function stopTimer() {
     saveData(); 
 }
 
-function resetStopwatch() {
+export function resetStopwatch() {
     clearInterval(state.stopwatchTimer);
     state.isStopwatchRunning = false; 
     state.isStopwatchPaused = false;
@@ -137,7 +143,7 @@ function resetStopwatch() {
 }
 
 // --- POMODORO ---
-function beginNewPomodoroPhase(durationInSeconds, stateName) {
+export function beginNewPomodoroPhase(durationInSeconds, stateName) {
     stopAndLogRunningTimers('pomodoro');
     state.pomodoroOriginalDuration = durationInSeconds;
     if (stateName === 'studying') {
@@ -189,9 +195,9 @@ function handlePomodoroCompletion(isSkipped = false) {
     }
 }
 
-function skipPomodoroPhase() { handlePomodoroCompletion(true); }
+export function skipPomodoroPhase() { handlePomodoroCompletion(true); }
 
-function startPomodoroCountdown(durationInSeconds, stateName) {
+export function startPomodoroCountdown(durationInSeconds, stateName) {
     clearInterval(state.pomodoroTimer); 
     state.pomodoroState = stateName;
     state.pomodoroSecondsLeft = durationInSeconds;
@@ -209,7 +215,7 @@ function startPomodoroCountdown(durationInSeconds, stateName) {
     updateTimerTabIndicators(); saveTimerProgress(); 
 }
 
-function togglePomodoroPause() {
+export function togglePomodoroPause() {
     if (state.isPomodoroPaused) {
         state.isPomodoroPaused = false; refs.pomodoroPauseResumeBtn.textContent = "Pause";
         startPomodoroCountdown(state.pomodoroPausedTime, state.pomodoroState);
@@ -220,7 +226,7 @@ function togglePomodoroPause() {
     saveTimerProgress();
 }
 
-function stopPomodoro() {
+export function stopPomodoro() {
     clearInterval(state.pomodoroTimer);
     playAlarm(true);
     if (state.pomodoroState === 'studying') {
@@ -235,7 +241,7 @@ function stopPomodoro() {
     saveData(); 
 }
 
-function resetPomodoro() {
+export function resetPomodoro() {
     // Back to default (Start button only)
     clearInterval(state.pomodoroTimer);
     state.pomodoroState = 'idle';
@@ -255,7 +261,7 @@ function resetPomodoro() {
 }
 
 // --- COUNTDOWN ---
-function startCountdownTimer(durationInSeconds) {
+export function startCountdownTimer(durationInSeconds) {
     stopAndLogRunningTimers('countdown');
     
     // 1. Determine the duration if not provided (e.g. Button Click)
@@ -340,14 +346,14 @@ function startCountdownTimer(durationInSeconds) {
     saveTimerProgress();
 }
 
-function pauseCountdownTimer() {
+export function pauseCountdownTimer() {
     clearInterval(state.countdownTimer); 
     state.isCountdownRunning = false; state.isCountdownPaused = true; state.countdownPausedTime = state.countdownSecondsLeft;
     refs.countdownStartPauseBtn.textContent = "Resume"; 
     updateTimerTabIndicators(); saveTimerProgress(); 
 }
 
-function stopCountdownTimer() {
+export function stopCountdownTimer() {
     clearInterval(state.countdownTimer); playAlarm(true); 
     const elapsedSeconds = state.countdownOriginalDuration - state.countdownSecondsLeft;
     if (elapsedSeconds >= 2) {
@@ -358,7 +364,7 @@ function stopCountdownTimer() {
     saveData(); 
 }
 
-function resetCountdownTimer() {
+export function resetCountdownTimer() {
     clearInterval(state.countdownTimer); 
     playAlarm(true); 
     state.isCountdownRunning = false; state.isCountdownPaused = false; state.countdownSecondsLeft = 0; state.countdownStartTime = null;
@@ -377,7 +383,7 @@ function resetCountdownTimer() {
     updateTimerTabIndicators();
 }
 
-function setTimerMode(mode) {
+export function setTimerMode(mode) {
     refs.stopwatchPanel.classList.add('hidden'); 
     refs.pomodoroPanel.classList.add('hidden'); 
     refs.countdownPanel.classList.add('hidden');
@@ -399,11 +405,3 @@ function formatCountdown(sec) {
     const m=Math.floor(sec / 60).toString().padStart(2, '0'); const s=(sec % 60).toString().padStart(2, '0'); 
     return `${m}:${s}`;
 }
-
-module.exports = {
-    init, startTimer, pauseTimer, stopTimer, resetStopwatch,
-    beginNewPomodoroPhase, startPomodoroCountdown, togglePomodoroPause, stopPomodoro,
-    resetPomodoro, skipPomodoroPhase, updatePomodoroDisplay,
-    startCountdownTimer, pauseCountdownTimer, stopCountdownTimer, resetCountdownTimer,
-    setTimerMode
-};

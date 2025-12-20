@@ -29,8 +29,6 @@ const modalHTML = `
 </div>
 `;
 
-function inject() {
+export function inject() {
     document.body.insertAdjacentHTML('beforeend', modalHTML);
 }
-
-module.exports = { inject };

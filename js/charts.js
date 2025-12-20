@@ -1,18 +1,17 @@
-let state, refs;
-// IMPORT UTILS
-const { getLocalISODateString, getPersianDateString } = require('./utils');
+import { getLocalISODateString, getPersianDateString } from './utils.js';
 
-function init(appState, uiRefs) {
+let state, refs;
+
+export function init(appState, uiRefs) {
     state = appState;
     refs = uiRefs;
 }
 
-// --- NEW HELPER: Read CSS Variables ---
 function getCSSVal(variableName) {
     return getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
 }
 
-function getCharts() {
+export function getCharts() {
     return {
         timeChart: state.timeChart,
         scoreChart: state.scoreChart,
@@ -21,7 +20,13 @@ function getCharts() {
     };
 }
 
-function initializeCharts() {
+export function initializeCharts() {
+    // Safety check for container existence
+    if (!refs.timeChart || !refs.scoreChart) {
+        console.warn("Chart containers not found in DOM");
+        return;
+    }
+
     const chartOptions = { 
         renderer: 'svg', 
         devicePixelRatio: window.devicePixelRatio || 2 
@@ -39,16 +44,15 @@ function initializeCharts() {
     chartResizeObserver.observe(refs.scoreChart);
 
     const toggleZoom = (isVisible) => {
-        state.scoreChart.setOption({ dataZoom: [{ show: isVisible }] });
+        if (state.scoreChart) {
+            state.scoreChart.setOption({ dataZoom: [{ show: isVisible }] });
+        }
     };
     refs.scoreChart.addEventListener('mouseenter', () => toggleZoom(true));
     refs.scoreChart.addEventListener('mouseleave', () => toggleZoom(false));
 }
 
-function updateLeftChartHeader(title, showStats = false, statData = null) {
-    const titleEl = document.getElementById('chart-title-left');
-    if (titleEl) titleEl.textContent = title;
-
+export function updateLeftChartHeader(title, showStats = false, statData = null) {
     const statsContainer = document.getElementById('trend-stats-container');
     const valueEl = document.getElementById('trend-stats-value');
     const statusEl = document.getElementById('trend-stats-status');
@@ -59,13 +63,13 @@ function updateLeftChartHeader(title, showStats = false, statData = null) {
             statusEl.textContent = `${statData.icon} ${statData.text}`;
             statusEl.style.color = statData.color;
         }
-        statsContainer.classList.add('visible');
+        if(statsContainer) statsContainer.classList.add('visible');
     } else {
-        statsContainer.classList.remove('visible');
+        if(statsContainer) statsContainer.classList.remove('visible');
     }
 }
 
-function getTrendChartOptions() {
+export function getTrendChartOptions() {
     const days = state.trendChartSpan || 7;
     const isHighDensity = days > 14; 
     const labelFontSize = isHighDensity ? 9 : 11;       
@@ -91,7 +95,6 @@ function getTrendChartOptions() {
 
     let statusText = "Gathering Data...";
     
-    // CSS VARIABLE LOOKUPS FOR STATUS
     const colorNeutral = getCSSVal('--chart-status-neutral');
     const colorDanger  = getCSSVal('--chart-status-danger');
     const colorWarning = getCSSVal('--chart-status-warning');
@@ -116,8 +119,6 @@ function getTrendChartOptions() {
     });
 
     const getPerformanceStyle = (hours) => {
-        // You can also map these to CSS vars if you want strict adherence, 
-        // but simple hex logic is often faster for dynamic heatmaps.
         if (!hours || hours < 0.2) return { bg: '#e0e0e0', text: '#4a413a' }; 
         const ratio = hours / 2; 
         if (ratio < 0.5) return { bg: '#cfd8dc', text: '#455a64' }; 
@@ -155,14 +156,9 @@ function getTrendChartOptions() {
         };
     });
 
-    // LOAD PALETTE FROM CSS
     const palette = [
-        getCSSVal('--chart-c1'),
-        getCSSVal('--chart-c2'),
-        getCSSVal('--chart-c3'),
-        getCSSVal('--chart-c4'),
-        getCSSVal('--chart-c5'),
-        getCSSVal('--chart-c6')
+        getCSSVal('--chart-c1'), getCSSVal('--chart-c2'), getCSSVal('--chart-c3'),
+        getCSSVal('--chart-c4'), getCSSVal('--chart-c5'), getCSSVal('--chart-c6')
     ];
 
     const series = activeCourses.map((course, index) => {
@@ -208,22 +204,15 @@ function getTrendChartOptions() {
         legend: { type: 'scroll', bottom: 0, textStyle: { color: colorText }, data: activeCourses },
         grid: { left: '2%', right: '3%', bottom: '12%', top: '10%', containLabel: true },
         xAxis: { 
-            type: 'category', 
-            data: dates, 
-            axisLine: { lineStyle: { color: colorGrid } }, 
-            axisLabel: { 
-                color: colorText,
-                formatter: function(value) {
-                    return getPersianDateString(new Date(value));
-                }
-            } 
+            type: 'category', data: dates, axisLine: { lineStyle: { color: colorGrid } }, 
+            axisLabel: { color: colorText, formatter: function(value) { return getPersianDateString(new Date(value)); } } 
         },
         yAxis: { type: 'value', splitLine: { lineStyle: { color: colorGrid, type: 'dashed' } }, axisLabel: { color: colorText } },
         series: series
     };
 }
 
-function getTimeChartOptions(modeOverride) {
+export function getTimeChartOptions(modeOverride) {
     const mode = modeOverride || state.pieChartMode || 'total';
     if (mode === 'trend') return getTrendChartOptions();
 
@@ -237,24 +226,16 @@ function getTimeChartOptions(modeOverride) {
 
     updateLeftChartHeader(title, false);
     const courseData = {};
-    let totalSeconds = 0;
     sessionsToDisplay.forEach(s => { 
         courseData[s.course] = (courseData[s.course] || 0) + (s.seconds || 0);
-        totalSeconds += (s.seconds || 0);
     });
 
     const chartData = Object.keys(courseData).map(course => ({ name: course, value: (courseData[course] / 3600) }));
     
-    // LOAD PALETTE FROM CSS
     const piePalette = [
-        getCSSVal('--chart-c1'),
-        getCSSVal('--chart-c2'),
-        getCSSVal('--chart-c3'),
-        getCSSVal('--chart-c4'),
-        getCSSVal('--chart-c5'),
-        getCSSVal('--chart-c6')
+        getCSSVal('--chart-c1'), getCSSVal('--chart-c2'), getCSSVal('--chart-c3'),
+        getCSSVal('--chart-c4'), getCSSVal('--chart-c5'), getCSSVal('--chart-c6')
     ];
-
     const colorText = getCSSVal('--chart-text');
     const colorGrid = getCSSVal('--chart-grid-line');
 
@@ -271,28 +252,20 @@ function getTimeChartOptions(modeOverride) {
             }
         },
         legend: { 
-            type: 'scroll', 
-            orient: 'vertical',
-            right: 0,
-            top: 'middle',
-            height: '90%',
+            type: 'scroll', orient: 'vertical', right: 0, top: 'middle', height: '90%',
             textStyle: { color: colorText, fontWeight: 'bold' },
-            pageIconColor: getCSSVal('--chart-c1'),
-            pageTextStyle: { color: colorText }
+            pageIconColor: getCSSVal('--chart-c1'), pageTextStyle: { color: colorText }
         },
         series: [{ 
-            type: 'pie', 
-            radius: ['60%', '90%'], 
-            center: ['42%', '50%'], 
-            data: chartData, 
-            label: { show: false },
-            itemStyle: { borderColor: '#ffffff', borderWidth: 3 },
-            emphasis: { scale: true, scaleSize: 5 }
+            type: 'pie', radius: ['60%', '90%'], center: ['42%', '50%'], data: chartData, 
+            label: { show: false }, itemStyle: { borderColor: '#ffffff', borderWidth: 3 }, emphasis: { scale: true, scaleSize: 5 }
         }]
     };
 }
 
-function updateTimeChart() {
+export function updateTimeChart() {
+    if (!state.timeChart) return; // <--- FIX: Guard clause
+
     state.timeChart.clear(); 
     const option = getTimeChartOptions(state.pieChartMode);
     state.timeChart.setOption(option, { notMerge: true });
@@ -317,38 +290,26 @@ function updateTimeChart() {
     }
 }
 
-function getScoreChartOptions() {
-    // 1. Process Data: Group by Course and Sort by Date
+export function getScoreChartOptions() {
     const courseGroups = {};
     let maxAttempts = 0;
 
     state.allScores.forEach(s => {
-        if (!courseGroups[s.course]) {
-            courseGroups[s.course] = [];
-        }
-        courseGroups[s.course].push({
-            score: s.score,
-            date: new Date(s.timestamp),
-            notes: s.notes
-        });
+        if (!courseGroups[s.course]) { courseGroups[s.course] = []; }
+        courseGroups[s.course].push({ score: s.score, date: new Date(s.timestamp), notes: s.notes });
     });
 
-    // Sort courses by latest activity (Right side = Most recent courses)
     const courses = Object.keys(courseGroups).sort((a, b) => {
         const lastA = Math.max(...courseGroups[a].map(i => i.date));
         const lastB = Math.max(...courseGroups[b].map(i => i.date));
         return lastA - lastB;
     });
 
-    // Sort scores within courses (Oldest -> Newest) & Find Max Attempts
     courses.forEach(c => {
         courseGroups[c].sort((a, b) => a.date - b.date);
-        if (courseGroups[c].length > maxAttempts) {
-            maxAttempts = courseGroups[c].length;
-        }
+        if (courseGroups[c].length > maxAttempts) maxAttempts = courseGroups[c].length;
     });
 
-    // 2. Build Series Data
     const seriesList = [];
     const baseColor = getCSSVal('--chart-c4'); 
 
@@ -356,49 +317,26 @@ function getScoreChartOptions() {
         const dataForAttempt = courses.map(c => {
             const entry = courseGroups[c][i]; 
             if (!entry) return null; 
-            return {
-                value: entry.score,
-                date: entry.date,
-                notes: entry.notes,
-                course: c,
-                attemptIndex: i + 1
-            };
+            return { value: entry.score, date: entry.date, notes: entry.notes, course: c, attemptIndex: i + 1 };
         });
 
-        // Opacity gradient: Older attempts are ghosted, newest are solid
         const opacity = 0.3 + (0.7 * (i / (maxAttempts - 1 || 1)));
 
         seriesList.push({
-            name: `Attempt ${i + 1}`,
-            type: 'bar',
-            data: dataForAttempt,
-            barGap: '5%',          // Tight gap between attempts
-            barCategoryGap: '30%', // Distinct gap between courses
-            itemStyle: {
-                color: baseColor,
-                opacity: opacity,
-                borderRadius: [3, 3, 0, 0]
-            },
-            emphasis: {
-                focus: 'series',
-                itemStyle: { opacity: 1, color: getCSSVal('--chart-c2') }
-            }
+            name: `Attempt ${i + 1}`, type: 'bar', data: dataForAttempt,
+            barGap: '5%', barCategoryGap: '30%',
+            itemStyle: { color: baseColor, opacity: opacity, borderRadius: [3, 3, 0, 0] },
+            emphasis: { focus: 'series', itemStyle: { opacity: 1, color: getCSSVal('--chart-c2') } }
         });
     }
 
     const colorText = getCSSVal('--chart-text');
     const colorGrid = getCSSVal('--chart-grid-line');
-    const zoomColor = getCSSVal('--chart-c1');
-
-    // Calculate Zoom: Show max 5 courses by default, anchored to the RIGHT (newest)
     const defaultZoomStart = courses.length > 5 ? 100 - ((5 / courses.length) * 100) : 0;
 
     return {
         tooltip: {
-            trigger: 'item',
-            backgroundColor: getCSSVal('--chart-tooltip-bg'),
-            borderColor: colorGrid,
-            textStyle: { color: colorText },
+            trigger: 'item', backgroundColor: getCSSVal('--chart-tooltip-bg'), borderColor: colorGrid, textStyle: { color: colorText },
             formatter: (params) => {
                 if (!params.data) return '';
                 const pDate = getPersianDateString(params.data.date);
@@ -412,85 +350,29 @@ function getScoreChartOptions() {
                 `;
             }
         },
-        grid: {
-            left: '5%',
-            right: '5%',
-            top: '10%',
-            bottom: '35px', // Space for the scrollbar
-            containLabel: true
-        },
+        grid: { left: '5%', right: '5%', top: '10%', bottom: '35px', containLabel: true },
         xAxis: {
-            type: 'category',
-            data: courses,
-            axisLabel: {
-                color: colorText,
-                interval: 0,
-                fontSize: 11,
-                fontWeight: 'bold',
-                width: 90,
-                overflow: 'break'
-            },
-            axisLine: { lineStyle: { color: colorGrid } },
-            axisTick: { show: false }
+            type: 'category', data: courses,
+            axisLabel: { color: colorText, interval: 0, fontSize: 11, fontWeight: 'bold', width: 90, overflow: 'break' },
+            axisLine: { lineStyle: { color: colorGrid } }, axisTick: { show: false }
         },
-        yAxis: {
-            type: 'value',
-            min: 0,
-            max: 100,
-            axisLabel: { color: colorText },
-            splitLine: { lineStyle: { color: colorGrid, type: 'dashed' } }
-        },
-        
-        // FUNCTIONAL SCROLLBAR
+        yAxis: { type: 'value', min: 0, max: 100, axisLabel: { color: colorText }, splitLine: { lineStyle: { color: colorGrid, type: 'dashed' } } },
         dataZoom: [
-            {
-                type: 'slider',
-                show: true,
-                xAxisIndex: 0,
-                start: defaultZoomStart, 
-                end: 100,                
-                height: 10,              // Slim track
-                bottom: 5,
-                borderColor: 'transparent',
-                backgroundColor: 'rgba(0,0,0,0.03)',
-                fillerColor: 'rgba(40, 53, 147, 0.15)', 
-                borderRadius: 5,         
-                
-                // --- MINIMAL HANDLES ---
-                // Simple rounded vertical pill shape
-                handleIcon: 'path://M-2,0 h4 c1.1,0 2,0.9 2,2 v12 c0,1.1 -0.9,2 -2,2 h-4 c-1.1,0 -2,-0.9 -2,-2 v-12 c0,-1.1 0.9,-2 2,-2 z',
-                handleSize: '140%',      // Slightly larger than track to be grabbable
-                handleStyle: {
-                    color: '#ffffff',
-                    borderColor: '#cfd8dc', // Light grey border
-                    borderWidth: 1,
-                    shadowBlur: 2,
-                    shadowColor: 'rgba(0, 0, 0, 0.1)'
-                },
-
-                brushSelect: false,      // Disable selection drag
-                moveHandleSize: 0,       // Hide top bar
-                showDataShadow: false, 
-                showDetail: false
-            },
-            {
-                type: 'inside', 
-                xAxisIndex: 0,
-                zoomOnMouseWheel: false,
-                moveOnMouseWheel: true
-            }
+            { type: 'slider', show: true, xAxisIndex: 0, start: defaultZoomStart, end: 100, height: 10, bottom: 5, borderColor: 'transparent', backgroundColor: 'rgba(0,0,0,0.03)', fillerColor: 'rgba(40, 53, 147, 0.15)', borderRadius: 5, handleIcon: 'path://M-2,0 h4 c1.1,0 2,0.9 2,2 v12 c0,1.1 -0.9,2 -2,2 h-4 c-1.1,0 -2,-0.9 -2,-2 v-12 c0,-1.1 0.9,-2 2,-2 z', handleSize: '140%', handleStyle: { color: '#ffffff', borderColor: '#cfd8dc', borderWidth: 1, shadowBlur: 2, shadowColor: 'rgba(0, 0, 0, 0.1)' }, brushSelect: false, moveHandleSize: 0, showDataShadow: false, showDetail: false },
+            { type: 'inside', xAxisIndex: 0, zoomOnMouseWheel: false, moveOnMouseWheel: true }
         ],
-        
         series: seriesList
     };
 }
 
-function updateScoreChart() {
+export function updateScoreChart() {
+    if (!state.scoreChart) return; // <--- FIX: Guard clause
+
     const option = getScoreChartOptions();
     state.scoreChart.setOption(option, { notMerge: true });
 }
 
-function setPieMode(mode) {
+export function setPieMode(mode) {
     state.pieChartMode = mode;
     refs.btnPieTotal.classList.toggle('active', mode === 'total');
     refs.btnPieToday.classList.toggle('active', mode === 'today');
@@ -498,8 +380,3 @@ function setPieMode(mode) {
     if (mode === 'trend') refs.trendSpanSelect.classList.remove('hidden'); else refs.trendSpanSelect.classList.add('hidden');
     updateTimeChart(); 
 }
-
-module.exports = {
-    init, initializeCharts, getTimeChartOptions, getTrendChartOptions, getScoreChartOptions,
-    updateTimeChart, updateScoreChart, setPieMode, getCharts
-};

@@ -1,0 +1,21 @@
+{
+  "name": "MedChronos",
+  "short_name": "MedChronos",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#cfd8dc",
+  "theme_color": "#283593",
+  "description": "Offline-first study tracker for medical residents.",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3063/3063176.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3063/3063176.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

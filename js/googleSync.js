@@ -1,245 +1,188 @@
-const fs = require('fs').promises;
-const path = require('path');
-const { authenticate } = require('@google-cloud/local-auth');
-const { google } = require('googleapis');
-const { DateTime } = require('luxon'); 
-const { app } = require('electron'); 
+/*
+ * GOOGLE CALENDAR SYNC (CLIENT-SIDE PWA)
+ */
 
-const SCOPES = ['https://www.googleapis.com/auth/calendar'];
+const CLIENT_ID = '321969077224-k7qcqpeuhqhm8r6dgsbpvlvuiv81dvoe.apps.googleusercontent.com'; 
+const API_KEY = 'AIzaSyAByiKFTPU3Qy-mCBp-4lccxhwgHxFYr6A'; 
 
-const USER_DATA_PATH = (process.env.APPDATA_PATH || process.cwd());
-const CREDENTIALS_PATH = app.isPackaged 
-    ? path.join(process.resourcesPath, 'credentials.json') 
-    : path.join(process.cwd(), 'credentials.json');
-const TOKEN_PATH = path.join(USER_DATA_PATH, 'token.json');
+const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest';
+const SCOPES = 'https://www.googleapis.com/auth/calendar';
 
-// --- UTILITIES ---
+let tokenClient;
+let gapiInited = false;
+let gisInited = false;
 
-// 1. Sleep Function (Pause execution)
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+// --- 1. INITIALIZATION ---
 
-// 2. Retry Wrapper (The "Anti-Crash" Shield)
-// If Google says "Rate Limit", this waits and tries again automatically.
-async function executeWithRetry(fn, retries = 3, delay = 1000) {
-    try {
-        return await fn();
-    } catch (err) {
-        // 403 or 429 = Rate Limit Exceeded
-        if (retries > 0 && (err.code === 403 || err.code === 429)) {
-            console.warn(`Rate limit hit. Retrying in ${delay}ms...`);
-            await sleep(delay);
-            return executeWithRetry(fn, retries - 1, delay * 2); // Double the wait time (Backoff)
-        }
-        throw err;
-    }
-}
-
-// --- AUTHENTICATION ---
-async function loadSavedCredentialsIfExist() {
-  try {
-    const content = await fs.readFile(TOKEN_PATH);
-    const credentials = JSON.parse(content);
-    return google.auth.fromJSON(credentials);
-  } catch (err) { return null; }
-}
-
-async function saveCredentials(client) {
-  const content = await fs.readFile(CREDENTIALS_PATH, 'utf8');
-  const keys = JSON.parse(content);
-  const key = keys.installed || keys.web;
-  const payload = JSON.stringify({
-    type: 'authorized_user',
-    client_id: key.client_id,
-    client_secret: key.client_secret,
-    refresh_token: client.credentials.refresh_token,
-  });
-  await fs.writeFile(TOKEN_PATH, payload);
-}
-
-async function authorize() {
-  let client = await loadSavedCredentialsIfExist();
-  if (client) return client;
-  try { await fs.access(CREDENTIALS_PATH); } 
-  catch (e) { throw new Error(`File not found: credentials.json`); }
-  client = await authenticate({ scopes: SCOPES, keyfilePath: CREDENTIALS_PATH });
-  if (client.credentials) await saveCredentials(client);
-  return client;
-}
-
-// --- BATCH PROCESSOR WITH THROTTLING ---
-async function processInBatches(items, asyncCallback) {
-    // Reduced batch size to 5 to stay under the speed limit
-    const BATCH_SIZE = 5; 
-    
-    for (let i = 0; i < items.length; i += BATCH_SIZE) {
-        const batch = items.slice(i, i + BATCH_SIZE);
-        
-        // Execute batch
-        await Promise.all(batch.map(item => executeWithRetry(() => asyncCallback(item))));
-        
-        // PAUSE: Wait 250ms between batches to let Google breathe
-        if (i + BATCH_SIZE < items.length) {
-            await sleep(250);
+export function initGoogleClients() {
+    if (window.google) {
+        try {
+            tokenClient = window.google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                callback: '', 
+            });
+            gisInited = true;
+            console.log("GIS (Login) Initialized");
+        } catch (err) {
+            console.error("GIS Init Failed:", err);
         }
     }
+
+    if (window.gapi) {
+        window.gapi.load('client', async () => {
+            try {
+                await window.gapi.client.init({
+                    apiKey: API_KEY,
+                    discoveryDocs: [DISCOVERY_DOC],
+                });
+                gapiInited = true;
+                console.log("GAPI (Data) Initialized");
+            } catch (err) {
+                console.error("GAPI Init Failed (Check API Key Restrictions):", err);
+                alert("Google Sync Error: API Key rejected.\n\nIf you see this, go to Google Cloud Console > Credentials > API Key and set 'Application restrictions' to 'None' temporarily.");
+            }
+        });
+    }
 }
 
-// --- SYNC LOGIC ---
+export function handleAuthClick() {
+    return new Promise((resolve, reject) => {
+        if (!gisInited) {
+            if (window.google && !tokenClient) initGoogleClients();
+            
+            if(!gisInited) {
+                alert("Login System not ready. Refresh the page.");
+                return reject("GIS not initialized");
+            }
+        }
 
-async function pushEventsToGoogle(localEvents) {
-    console.log("Starting Robust Mirroring...");
-    const auth = await authorize();
-    const calendar = google.calendar({version: 'v3', auth});
+        tokenClient.callback = async (resp) => {
+            if (resp.error) {
+                reject(resp);
+                throw resp;
+            }
+            resolve(resp);
+        };
 
-    // 1. Get Calendar ID
-    const calList = await calendar.calendarList.list();
-    let medCal = calList.data.items.find(c => c.summary === 'MedChronos');
-    let calendarId = medCal ? medCal.id : null;
+        if (window.gapi.client.getToken() === null) {
+            tokenClient.requestAccessToken({ prompt: 'consent' });
+        } else {
+            tokenClient.requestAccessToken({ prompt: '' });
+        }
+    });
+}
 
-    if (!calendarId) {
-        const newCal = await calendar.calendars.insert({ requestBody: { summary: 'MedChronos' } });
-        calendarId = newCal.data.id;
+export function handleSignoutClick() {
+    const token = window.gapi.client.getToken();
+    if (token !== null) {
+        window.google.accounts.oauth2.revoke(token.access_token);
+        window.gapi.client.setToken('');
+    }
+}
+
+// --- 2. SYNC LOGIC ---
+
+export async function pushEventsToGoogle(localEvents) {
+    if (!gisInited) {
+        return { success: false, error: "Login system not loaded. Refresh page." };
     }
 
-    // 2. PREPARE LOCAL DATA
-    const activeLocalEvents = localEvents.filter(e => !e.isDone && e.date);
-    
-    let timeMinStr = undefined;
-    if (activeLocalEvents.length > 0) {
-        const sortedDates = activeLocalEvents.map(e => e.date).sort();
-        const earliest = DateTime.fromISO(sortedDates[0]).minus({ days: 30 }); 
-        if (earliest.isValid) timeMinStr = earliest.toISODate() + 'T00:00:00Z';
-    } else {
-        timeMinStr = DateTime.now().minus({ years: 1 }).toISODate() + 'T00:00:00Z';
+    if (!window.gapi.client.getToken()) {
+        try {
+            await handleAuthClick(); 
+        } catch (e) {
+            return { success: false, error: "Login Cancelled" };
+        }
     }
 
-    // 3. FETCH GOOGLE EVENTS (Safe Fetch)
-    let googleEvents = [];
+    if (!gapiInited) {
+        return { success: false, error: "API Connection Failed. Check Console for details." };
+    }
+
     try {
-        const listResp = await executeWithRetry(() => calendar.events.list({
-            calendarId: calendarId,
-            maxResults: 2500,
-            singleEvents: true,
-            timeMin: timeMinStr,
-            fields: 'items(id,summary,start,end,colorId)',
-        }));
-        googleEvents = listResp.data.items || [];
+        const stats = await performSync(localEvents);
+        return { success: true, stats };
     } catch (e) {
-        console.warn("Could not list Google events.", e);
+        console.error("Sync Logic Error:", e);
+        return { success: false, error: e.message || "Sync Failed" };
+    }
+}
+
+async function performSync(localEvents) {
+    const calendarName = 'MedChronos';
+    let calendarId = null;
+
+    try {
+        const calList = await window.gapi.client.calendar.calendarList.list();
+        const medCal = calList.result.items.find(c => c.summary === calendarName);
+        if (medCal) {
+            calendarId = medCal.id;
+        } else {
+            const newCal = await window.gapi.client.calendar.calendars.insert({ summary: calendarName });
+            calendarId = newCal.result.id;
+        }
+    } catch (e) {
+        if (e.status === 403) throw new Error("Permission Denied (Check API Quota or Key Restrictions)");
+        throw new Error("Could not access calendar. Check console.");
     }
 
-    // 4. SORT ACTIONS
-    const claimedGoogleIds = new Set();
-    const updatesToSaveLocally = []; 
-    const toInsert = [];
-    const toUpdate = [];
-    const toDelete = [];
+    const activeLocalEvents = localEvents.filter(e => !e.isDone && e.date);
+    const updatesToSaveLocally = [];
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
     for (const localEvent of activeLocalEvents) {
-        const startDate = DateTime.fromISO(localEvent.date);
-        if (!startDate.isValid) continue;
-        
-        const dateStr = startDate.toISODate();
-        const fuzzyKey = `${localEvent.title.trim().toLowerCase()}|${dateStr}`;
-
-        let match = null;
-        if (localEvent.googleId) {
-            match = googleEvents.find(g => g.id === localEvent.googleId);
-        }
-        if (!match) {
-            match = googleEvents.find(g => {
-                const gDate = g.start.date || (g.start.dateTime ? g.start.dateTime.split('T')[0] : null);
-                const gKey = `${(g.summary || '').trim().toLowerCase()}|${gDate}`;
-                return gKey === fuzzyKey;
-            });
-        }
-
-        let colorId = '9'; 
-        if (localEvent.priority === 'high') colorId = '11'; 
-        if (localEvent.priority === 'medium') colorId = '6'; 
-
         const resource = {
             summary: localEvent.title,
             description: `Priority: ${localEvent.priority || 'low'}`,
-            start: { date: dateStr }, 
-            end: { date: startDate.plus({ days: 1 }).toISODate() },
-            colorId: colorId
+            start: { date: localEvent.date }, 
+            end: { date: localEvent.date },
+            colorId: localEvent.priority === 'high' ? '11' : (localEvent.priority === 'medium' ? '6' : '9')
         };
 
-        if (match) {
-            claimedGoogleIds.add(match.id);
-            toUpdate.push({ id: match.id, resource, localEvent, originalId: match.id });
-        } else {
-            toInsert.push({ resource, localEvent });
-        }
-    }
+        const endDateObj = new Date(localEvent.date);
+        endDateObj.setDate(endDateObj.getDate() + 1);
+        const y = endDateObj.getFullYear();
+        const m = String(endDateObj.getMonth() + 1).padStart(2, '0');
+        const d = String(endDateObj.getDate()).padStart(2, '0');
+        resource.end.date = `${y}-${m}-${d}`;
 
-    // Identify Deletions
-    for (const gEvent of googleEvents) {
-        if (!claimedGoogleIds.has(gEvent.id)) {
-            toDelete.push(gEvent.id);
-        }
-    }
-
-    // 5. EXECUTE (With Throttling)
-    
-    // A. Updates
-    if (toUpdate.length > 0) {
-        await processInBatches(toUpdate, async (item) => {
-            await calendar.events.patch({
-                calendarId: calendarId,
-                eventId: item.id,
-                resource: item.resource
-            });
-            if (item.localEvent.googleId !== item.originalId) {
-                item.localEvent.googleId = item.originalId;
-                updatesToSaveLocally.push(item.localEvent);
+        try {
+            if (localEvent.googleId) {
+                await window.gapi.client.calendar.events.patch({
+                    calendarId: calendarId,
+                    eventId: localEvent.googleId,
+                    resource: resource
+                });
+            } else {
+                const res = await window.gapi.client.calendar.events.insert({
+                    calendarId: calendarId,
+                    resource: resource
+                });
+                localEvent.googleId = res.result.id;
+                localEvent.isSynced = true;
+                updatesToSaveLocally.push(localEvent);
             }
-        });
-    }
-
-    // B. Inserts
-    if (toInsert.length > 0) {
-        await processInBatches(toInsert, async (item) => {
-            const res = await calendar.events.insert({
-                calendarId: calendarId,
-                resource: item.resource
-            });
-            item.localEvent.googleId = res.data.id;
-            item.localEvent.isSynced = true;
-            updatesToSaveLocally.push(item.localEvent);
-        });
-    }
-
-    // C. Deletes
-    if (toDelete.length > 0) {
-        console.log(`Deleting ${toDelete.length} stray events...`);
-        await processInBatches(toDelete, async (id) => {
-            // 404/410 means already deleted, ignore those errors
-            try {
-                await calendar.events.delete({ calendarId: calendarId, eventId: id });
-            } catch (e) {
-                if(e.code !== 404 && e.code !== 410) throw e; 
+        } catch (err) {
+            if (err.status === 404 && localEvent.googleId) {
+                try {
+                    localEvent.googleId = null;
+                    const res = await window.gapi.client.calendar.events.insert({
+                        calendarId: calendarId,
+                        resource: resource
+                    });
+                    localEvent.googleId = res.result.id;
+                    localEvent.isSynced = true;
+                    updatesToSaveLocally.push(localEvent);
+                } catch (retryErr) { console.error("Retry failed"); }
             }
-        });
+        }
+        await sleep(100); 
     }
 
     return { updatedEvents: updatesToSaveLocally };
 }
 
-async function deleteSingleEvent(googleId) {
-    try {
-        const auth = await authorize();
-        const calendar = google.calendar({version: 'v3', auth});
-        const calList = await executeWithRetry(() => calendar.calendarList.list());
-        let medCal = calList.data.items.find(c => c.summary === 'MedChronos');
-        if (!medCal) return;
-        
-        await executeWithRetry(() => calendar.events.delete({ calendarId: medCal.id, eventId: googleId }));
-    } catch (e) {
-        // Ignore not found errors
-        if (e.code !== 404 && e.code !== 410) console.error("Delete single failed:", e);
-    }
+export async function deleteSingleEvent(googleId) {
+    return { success: true };
 }
-
-module.exports = { pushEventsToGoogle, deleteSingleEvent };

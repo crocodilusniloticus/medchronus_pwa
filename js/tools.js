@@ -188,7 +188,7 @@ function toggleBreathing(container, label) {
     }
 }
 
-function initToolsListeners() {
+export function initToolsListeners() {
     const btnBrown = document.getElementById('noise-brown');
     const btnPink = document.getElementById('noise-pink');
     const btnWhite = document.getElementById('noise-white');
@@ -225,5 +225,3 @@ function initToolsListeners() {
         });
     }
 }
-
-module.exports = { initToolsListeners };

@@ -74,7 +74,7 @@ const manualContent = `
 </div>
 `;
 
-function init() {
+export function init() {
     try {
         const container = document.getElementById('manual-container');
         if (container) {
@@ -84,5 +84,3 @@ function init() {
         console.error("Failed to load manual content:", e);
     }
 }
-
-module.exports = { init };

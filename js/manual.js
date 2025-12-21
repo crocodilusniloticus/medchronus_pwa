@@ -29,22 +29,6 @@ const manualContent = `
     </div>
 
     <div class="manual-section">
-        <h3>⚠️ Critical: Google Calendar Sync</h3>
-        <div class="manual-alert manual-alert-danger">
-            <strong>The "Master Controller" Rule</strong>
-            <p>
-                This app acts as the master source for the <em>"MedChronos"</em> calendar.
-                <br><br>
-                <strong>Do NOT create events in the Google Calendar app directly.</strong>
-                <br>
-                If you add an exam via the Google Calendar app/website, MedChronos will <strong>delete it</strong> upon the next sync because it is not in the local database.
-                <br><br>
-                ✅ <strong>Correct Usage:</strong> Create deadlines <em>inside</em> MedChronos. Use your phone only to VIEW them.
-            </p>
-        </div>
-    </div>
-
-    <div class="manual-section">
         <h3>☁️ Cloud & Offline Data</h3>
         <ul>
             <li><strong>Offline First:</strong> All data is stored immediately in your browser. You never need internet to study.</li>

@@ -74,22 +74,27 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
 
     const handleSyncResult = (result, silent) => {
         if (result.success && result.stats) {
-            if (result.stats.updatedEvents && result.stats.updatedEvents.length > 0) {
-                let changesMade = false;
-                result.stats.updatedEvents.forEach(updatedEvent => {
-                    const localIndex = state.allEvents.findIndex(e => e.timestamp === updatedEvent.timestamp);
-                    if(localIndex > -1) {
-                        state.allEvents[localIndex].googleId = updatedEvent.googleId;
-                        state.allEvents[localIndex].isSynced = true;
-                        changesMade = true;
-                    }
-                });
-                if (changesMade) dataManager.saveData(); 
-            }
             
-            const totalChanges = result.stats.updatedEvents ? result.stats.updatedEvents.length : 0;
+            // --- TWO-WAY SYNC UPDATE ---
+            // If the sync returned a new list of events (merged from Google),
+            // we must update our local state and save it.
+            if (result.finalEvents) {
+                state.allEvents = result.finalEvents;
+                dataManager.saveData(); // Save the merged list to LocalStorage
+                updateAllDisplays();    // Refresh UI (Task list, Calendar)
+            }
+            // ---------------------------
+
+            const totalChanges = 
+                (result.stats.addedToLocal || 0) + 
+                (result.stats.deletedFromLocal || 0) + 
+                (result.stats.uploadedToGoogle || 0);
+
             if (!silent || totalChanges > 0) {
-                setStatus(totalChanges > 0 ? "Synced to Google" : "Google Cal: Up to date");
+                let msg = "Sync Complete";
+                if(totalChanges === 0) msg = "Google Cal: Up to date";
+                else msg = `Synced: +${result.stats.addedToLocal} | -${result.stats.deletedFromLocal} | ⬆${result.stats.uploadedToGoogle}`;
+                setStatus(msg);
             }
         } else {
             throw new Error(result.error || "Unknown error.");

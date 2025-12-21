@@ -1,4 +1,4 @@
-const CACHE_NAME = 'medchronos-v11'; // Bumped version to FORCE update
+const CACHE_NAME = 'medchronos-v2-production'; 
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -28,31 +28,11 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // Force this new worker to become active immediately
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return Promise.all(
-        ASSETS_TO_CACHE.map(url => {
-            return cache.add(url).catch(err => {
-                console.error('Failed to cache:', url, err);
-            });
-        })
-      );
-    })
-  );
-});
-
-self.addEventListener('fetch', (event) => {
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match('./index.html'))
-    );
-    return;
-  }
-
-  event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
+      // Standard caching strategy
+      return cache.addAll(ASSETS_TO_CACHE);
     })
   );
 });
@@ -63,7 +43,6 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
-            console.log("Deleting old cache:", cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -71,4 +50,15 @@ self.addEventListener('activate', (event) => {
     })
   );
   self.clients.claim();
+});
+
+self.addEventListener('fetch', (event) => {
+  // Simple "Stale-While-Revalidate" strategy
+  // 1. Try Network
+  // 2. Fallback to Cache
+  if (event.request.mode === 'navigate' || event.request.method === 'GET') {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request))
+    );
+  }
 });

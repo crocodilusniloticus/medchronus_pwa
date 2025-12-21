@@ -1,10 +1,10 @@
 /*
  * GOOGLE CALENDAR SYNC (CLIENT-SIDE PWA)
+ * TWO-WAY SYNC (MIRRORED)
  */
 
 const CLIENT_ID = '321969077224-k7qcqpeuhqhm8r6dgsbpvlvuiv81dvoe.apps.googleusercontent.com'; 
 const API_KEY = 'AIzaSyAByiKFTPU3Qy-mCBp-4lccxhwgHxFYr6A'; 
-
 const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest';
 const SCOPES = 'https://www.googleapis.com/auth/calendar';
 
@@ -12,72 +12,67 @@ let tokenClient;
 let gapiInited = false;
 let gisInited = false;
 
-// --- 1. INITIALIZATION ---
+// --- TOKEN STORAGE ---
+function saveTokenLocal(tokenResponse) {
+    if (!tokenResponse || !tokenResponse.access_token) return;
+    const expiresAt = Date.now() + (50 * 60 * 1000); 
+    const session = { token: tokenResponse.access_token, expiresAt: expiresAt };
+    localStorage.setItem('google_session', JSON.stringify(session));
+}
 
+function loadTokenLocal() {
+    const raw = localStorage.getItem('google_session');
+    if (!raw) return null;
+    try {
+        const session = JSON.parse(raw);
+        if (Date.now() > session.expiresAt) {
+            localStorage.removeItem('google_session'); 
+            return null;
+        }
+        return session.token;
+    } catch (e) { return null; }
+}
+
+// --- INIT ---
 export function initGoogleClients() {
-    // GIS (Identity Services) - Handles Login/Token
     if (window.google) {
         try {
             tokenClient = window.google.accounts.oauth2.initTokenClient({
-                client_id: CLIENT_ID,
-                scope: SCOPES,
-                callback: '', // Defined at request time
+                client_id: CLIENT_ID, scope: SCOPES, callback: '',
             });
             gisInited = true;
-            console.log("GIS (Login) Initialized");
-        } catch (err) {
-            console.error("GIS Init Failed:", err);
-        }
+        } catch (err) { console.error("GIS Init Failed:", err); }
     }
-
-    // GAPI (Client Library) - Handles Calendar Data
     if (window.gapi) {
         window.gapi.load('client', async () => {
             try {
-                await window.gapi.client.init({
-                    apiKey: API_KEY,
-                    discoveryDocs: [DISCOVERY_DOC],
-                });
+                await window.gapi.client.init({ apiKey: API_KEY, discoveryDocs: [DISCOVERY_DOC] });
                 gapiInited = true;
-                console.log("GAPI (Data) Initialized");
-            } catch (err) {
-                console.error("GAPI Init Failed:", err);
-            }
+                const savedToken = loadTokenLocal();
+                if (savedToken) window.gapi.client.setToken({ access_token: savedToken });
+            } catch (err) { console.error("GAPI Init Failed:", err); }
         });
     }
 }
 
-// --- 2. AUTH FLOW ---
-
+// --- AUTH ---
 export function handleAuthClick() {
     return new Promise((resolve, reject) => {
-        // Retry Init if needed
-        if (!gisInited || !tokenClient) initGoogleClients();
+        if (!gisInited || !tokenClient) { initGoogleClients(); return reject("GIS loading..."); }
+        if (window.gapi.client.getToken() !== null) { resolve({ access_token: window.gapi.client.getToken().access_token }); return; }
         
-        if (!gisInited || !tokenClient) {
-            alert("Google Services are still loading. Please wait a moment and try again.");
-            return reject("GIS not initialized");
+        const savedToken = loadTokenLocal();
+        if (savedToken) {
+            window.gapi.client.setToken({ access_token: savedToken });
+            resolve({ access_token: savedToken });
+            return;
         }
 
-        // Define the callback for THIS specific request
         tokenClient.callback = async (resp) => {
-            if (resp.error) {
-                console.error("Google Auth Error:", resp);
-                reject(resp);
-            } else {
-                resolve(resp);
-            }
+            if (resp.error) reject(resp);
+            else { saveTokenLocal(resp); resolve(resp); }
         };
-
-        // Check if we already have a token
-        if (window.gapi && window.gapi.client.getToken() === null) {
-            // Trigger Popup
-            // 'consent' forces the popup to appear if not signed in
-            tokenClient.requestAccessToken({ prompt: 'consent' });
-        } else {
-            // Refresh token silently
-            tokenClient.requestAccessToken({ prompt: '' });
-        }
+        tokenClient.requestAccessToken({ prompt: 'consent' });
     });
 }
 
@@ -87,124 +82,156 @@ export function handleSignoutClick() {
         window.google.accounts.oauth2.revoke(token.access_token);
         window.gapi.client.setToken('');
     }
+    localStorage.removeItem('google_session');
 }
 
-// --- 3. SYNC LOGIC ---
+// --- CORE TWO-WAY SYNC LOGIC ---
 
 export async function pushEventsToGoogle(localEvents) {
-    // 1. Check Clients
-    if (!gapiInited) {
-        // Try waiting 1 second
-        await new Promise(r => setTimeout(r, 1000));
-        if (!gapiInited) return { success: false, error: "Google API not connected." };
-    }
+    if (!gapiInited) await new Promise(r => setTimeout(r, 1000));
+    try { await handleAuthClick(); } catch (e) { return { success: false, error: "Login Required" }; }
 
-    // 2. Check Auth
-    if (!window.gapi.client.getToken()) {
-        try {
-            await handleAuthClick(); 
-        } catch (e) {
-            return { success: false, error: "Login Cancelled or Failed" };
-        }
-    }
-
-    // 3. Perform Sync
     try {
-        const stats = await performSync(localEvents);
-        return { success: true, stats };
+        // 1. Get Calendar ID
+        const calendarId = await getCalendarId();
+        
+        // 2. DOWNLOAD: Fetch all events from Google
+        const googleEvents = await fetchGoogleEvents(calendarId);
+        
+        // 3. MERGE: Process changes (Google -> App AND App -> Google)
+        const { finalEvents, stats } = await performTwoWaySync(calendarId, localEvents, googleEvents);
+        
+        return { success: true, stats, finalEvents }; // Return new list to App
     } catch (e) {
-        console.error("Sync Logic Error:", e);
-        return { success: false, error: e.message || "Sync Failed" };
+        console.error("Two-Way Sync Error:", e);
+        return { success: false, error: e.message };
     }
 }
 
-async function performSync(localEvents) {
+async function getCalendarId() {
     const calendarName = 'MedChronos';
-    let calendarId = null;
+    const calList = await window.gapi.client.calendar.calendarList.list();
+    const medCal = calList.result.items.find(c => c.summary === calendarName);
+    if (medCal) return medCal.id;
+    const newCal = await window.gapi.client.calendar.calendars.insert({ summary: calendarName });
+    return newCal.result.id;
+}
 
-    // Get or Create Calendar
-    try {
-        const calList = await window.gapi.client.calendar.calendarList.list();
-        const medCal = calList.result.items.find(c => c.summary === calendarName);
-        if (medCal) {
-            calendarId = medCal.id;
-        } else {
-            const newCal = await window.gapi.client.calendar.calendars.insert({ summary: calendarName });
-            calendarId = newCal.result.id;
-        }
-    } catch (e) {
-        if (e.status === 403) throw new Error("Permission Denied (Check API Quota)");
-        throw new Error("Calendar Access Failed");
-    }
+async function fetchGoogleEvents(calendarId) {
+    const response = await window.gapi.client.calendar.events.list({
+        calendarId: calendarId,
+        maxResults: 2500, // Fetch up to 2500 events
+        singleEvents: true
+    });
+    return response.result.items || [];
+}
 
-    const activeLocalEvents = localEvents.filter(e => !e.isDone && e.date);
-    const updatesToSaveLocally = [];
+async function performTwoWaySync(calendarId, localEvents, googleEvents) {
+    let stats = { addedToLocal: 0, deletedFromLocal: 0, uploadedToGoogle: 0 };
+    let newLocalEvents = [...localEvents]; // Copy current state
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-    for (const localEvent of activeLocalEvents) {
+    // --- A. IMPORT FROM GOOGLE (Google -> App) ---
+    googleEvents.forEach(gEvent => {
+        // Find if this Google Event exists locally
+        const matchIndex = newLocalEvents.findIndex(l => l.googleId === gEvent.id);
+        
+        if (matchIndex > -1) {
+            // EXISTS: Update local details to match Google (Google wins conflicts)
+            // Only update if data is actually different to save writes
+            if (newLocalEvents[matchIndex].title !== gEvent.summary || 
+                newLocalEvents[matchIndex].date !== gEvent.start.date) {
+                    
+                newLocalEvents[matchIndex].title = gEvent.summary;
+                newLocalEvents[matchIndex].date = gEvent.start.date;
+                // Parse priority from description if possible
+                if(gEvent.description && gEvent.description.includes('Priority:')) {
+                    const p = gEvent.description.split('Priority:')[1].trim();
+                    newLocalEvents[matchIndex].priority = p;
+                }
+                newLocalEvents[matchIndex].isSynced = true;
+            }
+        } else {
+            // MISSING LOCALLY: Add it to App
+            let priority = 'low';
+            if(gEvent.description && gEvent.description.includes('Priority:')) {
+                priority = gEvent.description.split('Priority:')[1].trim();
+            }
+            
+            newLocalEvents.push({
+                title: gEvent.summary,
+                date: gEvent.start.date, // YYYY-MM-DD
+                timestamp: new Date().toISOString(), // Generate a new local ID
+                priority: priority,
+                isDone: false,
+                googleId: gEvent.id,
+                isSynced: true
+            });
+            stats.addedToLocal++;
+        }
+    });
+
+    // --- B. HANDLE DELETIONS (Google Deleted -> App Delete) ---
+    // If we have a local event with a GoogleID, but that ID is NOT in the fetched Google list,
+    // it means the user deleted it on Google Calendar. We should delete it locally.
+    const googleIds = new Set(googleEvents.map(g => g.id));
+    
+    const countBefore = newLocalEvents.length;
+    newLocalEvents = newLocalEvents.filter(local => {
+        // If it has a Google ID, but that ID is missing from Google download -> Delete it
+        if (local.googleId && !googleIds.has(local.googleId)) {
+            return false; // Remove from local
+        }
+        return true; // Keep it
+    });
+    stats.deletedFromLocal = countBefore - newLocalEvents.length;
+
+    // --- C. EXPORT TO GOOGLE (App -> Google) ---
+    // Now handle items created locally that haven't been uploaded yet
+    for (const localEvent of newLocalEvents) {
+        if (localEvent.isSynced && localEvent.googleId) continue; // Already safe
+
+        // Prepare Resource
         const resource = {
             summary: localEvent.title,
             description: `Priority: ${localEvent.priority || 'low'}`,
             start: { date: localEvent.date }, 
-            end: { date: localEvent.date },
+            end: { date: localEvent.date }, // Will fix below
             colorId: localEvent.priority === 'high' ? '11' : (localEvent.priority === 'medium' ? '6' : '9')
         };
 
-        // Fix End Date (Google needs exclusive end date for all-day events)
+        // Fix End Date (Exclusive)
         const endDateObj = new Date(localEvent.date);
         endDateObj.setDate(endDateObj.getDate() + 1);
-        const y = endDateObj.getFullYear();
-        const m = String(endDateObj.getMonth() + 1).padStart(2, '0');
-        const d = String(endDateObj.getDate()).padStart(2, '0');
-        resource.end.date = `${y}-${m}-${d}`;
+        resource.end.date = endDateObj.toISOString().split('T')[0];
 
         try {
-            if (localEvent.googleId) {
-                // Update Existing
-                try {
-                    await window.gapi.client.calendar.events.patch({
-                        calendarId: calendarId,
-                        eventId: localEvent.googleId,
-                        resource: resource
-                    });
-                } catch (patchErr) {
-                    // If 404 (Deleted on Google), Re-create it
-                    if (patchErr.status === 404 || patchErr.status === 410) {
-                        const res = await window.gapi.client.calendar.events.insert({
-                            calendarId: calendarId,
-                            resource: resource
-                        });
-                        localEvent.googleId = res.result.id;
-                        localEvent.isSynced = true;
-                        updatesToSaveLocally.push(localEvent);
-                    }
-                }
-            } else {
-                // Insert New
-                const res = await window.gapi.client.calendar.events.insert({
-                    calendarId: calendarId,
-                    resource: resource
-                });
-                localEvent.googleId = res.result.id;
-                localEvent.isSynced = true;
-                updatesToSaveLocally.push(localEvent);
-            }
+            // Insert New
+            const res = await window.gapi.client.calendar.events.insert({
+                calendarId: calendarId,
+                resource: resource
+            });
+            
+            // Update local record with new Google ID
+            localEvent.googleId = res.result.id;
+            localEvent.isSynced = true;
+            stats.uploadedToGoogle++;
+            
         } catch (err) {
-            console.error(`Sync error for ${localEvent.title}:`, err);
+            console.error(`Upload error for ${localEvent.title}:`, err);
         }
-        await sleep(150); // Rate limit protection
+        await sleep(150); // Rate limit
     }
 
-    return { updatedEvents: updatesToSaveLocally };
+    return { finalEvents: newLocalEvents, stats };
 }
 
 export async function deleteSingleEvent(googleId) {
-    if (!gapiInited || !gisInited) return { success: false };
-    if (!window.gapi.client.getToken()) return { success: false };
-
+    if (!gapiInited) return { success: false };
     try {
+        const calendarName = 'MedChronos';
         const calList = await window.gapi.client.calendar.calendarList.list();
-        const medCal = calList.result.items.find(c => c.summary === 'MedChronos');
+        const medCal = calList.result.items.find(c => c.summary === calendarName);
         if (!medCal) return { success: true };
 
         await window.gapi.client.calendar.events.delete({
@@ -212,7 +239,5 @@ export async function deleteSingleEvent(googleId) {
             eventId: googleId
         });
         return { success: true };
-    } catch (e) {
-        return { success: true }; // Treat 404/errors as "already deleted"
-    }
+    } catch (e) { return { success: true }; }
 }

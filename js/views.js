@@ -34,7 +34,27 @@ export function initializeCalendar() {
                 const eventsList = eventsOnThisDay.map(e => `• ${e.title}`).join('\n');
                 dayElem.setAttribute('data-tooltip', eventsList);
             } 
-            dayElem.addEventListener('contextmenu', (e) => { e.preventDefault(); showEventModal(dayElem.dateObj); }); 
+            
+            // --- DESKTOP: Right Click ---
+            dayElem.addEventListener('contextmenu', (e) => { 
+                e.preventDefault(); 
+                showEventModal(dayElem.dateObj); 
+            }); 
+
+            // --- MOBILE: Long Press (Simulate Right Click) ---
+            let pressTimer;
+            dayElem.addEventListener('touchstart', (e) => {
+                pressTimer = setTimeout(() => {
+                    e.preventDefault(); // Prevent default touch behavior
+                    if (navigator.vibrate) navigator.vibrate(50); // Haptic feedback
+                    showEventModal(dayElem.dateObj);
+                }, 600); // 600ms threshold for long press
+            }, { passive: false });
+
+            const clearTimer = () => clearTimeout(pressTimer);
+            dayElem.addEventListener('touchend', clearTimer);
+            dayElem.addEventListener('touchmove', clearTimer);
+            dayElem.addEventListener('touchcancel', clearTimer);
         } 
     }); 
 }
@@ -46,6 +66,8 @@ export function initializeGlobalTooltips() {
             target: '[data-tooltip]', 
             content: (reference) => reference.dataset.tooltip, 
             allowHTML: false, 
+            // FIX: Added 'click' to trigger ensures tapping on mobile shows the tooltip
+            trigger: 'mouseenter focus click', 
             placement: 'top', 
             animation: 'fade', 
             delay: 15, 

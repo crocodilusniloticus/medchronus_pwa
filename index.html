@@ -411,16 +411,27 @@
     <audio id="alarm-sound"></audio>
     
     <script type="module" src="./renderer.js"></script>
-    
-    <!-- Service Worker Registration -->
     <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./service-worker.js')
-                    .then(reg => console.log('Service Worker Registered'))
-                    .catch(err => console.log('Service Worker Error', err));
-            });
-        }
-    </script>
+    // THE ZOMBIE KILLER
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            if(registrations.length > 0) {
+                console.log("⚠️ Found Zombie Service Workers. Killing them now...");
+                for(let registration of registrations) {
+                    registration.unregister();
+                    console.log("💀 Unregistered worker:", registration.scope);
+                }
+                // Force a reload to ensure the page loads clean
+                if (!sessionStorage.getItem('reloaded')) {
+                    sessionStorage.setItem('reloaded', 'true');
+                    window.location.reload();
+                }
+            } else {
+                console.log("✅ No Service Workers found. You are clean.");
+            }
+        });
+    }
+</script>
+    
 </body>
 </html>

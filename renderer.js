@@ -25,8 +25,16 @@ function initializeApp() {
 
         // FIX: Initialize Google API Clients immediately
         // We use a slight delay to ensure the async scripts in index.html have loaded
-        setTimeout(() => {
-            initGoogleClients();
+       setTimeout(() => {
+    initGoogleClients();
+    
+        // Auto-Restore: If user was logged in, just nudge the connection
+        if (localStorage.getItem('google_auth_active') === 'true') {
+        import('./js/googleSync.js').then(module => {
+            // This attempts a silent handshake in the background
+            module.handleAuthClick().catch(e => console.log("Auto-restore silent auth failed (normal if offline)"));
+             });
+        }
         }, 1000);
 
         manual.init();

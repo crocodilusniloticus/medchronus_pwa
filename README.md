@@ -4,7 +4,7 @@
 
 MedChronos is a Progressive Web App (PWA) designed for high-stakes medical residency preparation. It combines advanced time-tracking, spaced repetition concepts, and mental resilience tools into a distraction-free interface that works entirely offline.
 
-![Version](https://img.shields.io/github/v/release/crocodilusniloticus/residency-prep-hub?label=latest%20version&color=blue)
+![Version](https://img.shields.io/github/v/release/crocodilusniloticus/medchronus_pwa?label=latest%20version&color=blue)
 ![Platform](https://img.shields.io/badge/platform-PWA-blue)
 ![License](https://img.shields.io/github/license/crocodilusniloticus/residency-prep-hub)
 ![Build Status](https://github.com/crocodilusniloticus/residency-prep-hub/actions/workflows/build.yml/badge.svg)

@@ -1,6 +1,6 @@
 /*
  * GOOGLE CALENDAR SYNC (CLIENT-SIDE PWA)
- * TWO-WAY SYNC (MIRRORED)
+ * TWO-WAY SYNC WITH SMART LINKING
  */
 
 const CLIENT_ID = '321969077224-k7qcqpeuhqhm8r6dgsbpvlvuiv81dvoe.apps.googleusercontent.com'; 
@@ -92,16 +92,10 @@ export async function pushEventsToGoogle(localEvents) {
     try { await handleAuthClick(); } catch (e) { return { success: false, error: "Login Required" }; }
 
     try {
-        // 1. Get Calendar ID
         const calendarId = await getCalendarId();
-        
-        // 2. DOWNLOAD: Fetch all events from Google
         const googleEvents = await fetchGoogleEvents(calendarId);
-        
-        // 3. MERGE: Process changes (Google -> App AND App -> Google)
         const { finalEvents, stats } = await performTwoWaySync(calendarId, localEvents, googleEvents);
-        
-        return { success: true, stats, finalEvents }; // Return new list to App
+        return { success: true, stats, finalEvents }; 
     } catch (e) {
         console.error("Two-Way Sync Error:", e);
         return { success: false, error: e.message };
@@ -119,32 +113,42 @@ async function getCalendarId() {
 
 async function fetchGoogleEvents(calendarId) {
     const response = await window.gapi.client.calendar.events.list({
-        calendarId: calendarId,
-        maxResults: 2500, // Fetch up to 2500 events
-        singleEvents: true
+        calendarId: calendarId, maxResults: 2500, singleEvents: true
     });
     return response.result.items || [];
 }
 
 async function performTwoWaySync(calendarId, localEvents, googleEvents) {
     let stats = { addedToLocal: 0, deletedFromLocal: 0, uploadedToGoogle: 0 };
-    let newLocalEvents = [...localEvents]; // Copy current state
+    let newLocalEvents = [...localEvents]; 
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-    // --- A. IMPORT FROM GOOGLE (Google -> App) ---
+    // --- A. IMPORT FROM GOOGLE ---
     googleEvents.forEach(gEvent => {
-        // Find if this Google Event exists locally
-        const matchIndex = newLocalEvents.findIndex(l => l.googleId === gEvent.id);
+        // 1. Try Match by ID
+        let matchIndex = newLocalEvents.findIndex(l => l.googleId === gEvent.id);
+        
+        // 2. SMART LINKING: If no ID match, try Title + Date match
+        // This fixes the "Duplicate" issue for legacy events
+        if (matchIndex === -1) {
+            matchIndex = newLocalEvents.findIndex(l => 
+                !l.googleId && // Only link if local has no ID
+                l.title === gEvent.summary && 
+                l.date === gEvent.start.date
+            );
+            // If we found a "Fuzzy Match", link them now!
+            if (matchIndex > -1) {
+                newLocalEvents[matchIndex].googleId = gEvent.id;
+                newLocalEvents[matchIndex].isSynced = true;
+            }
+        }
         
         if (matchIndex > -1) {
-            // EXISTS: Update local details to match Google (Google wins conflicts)
-            // Only update if data is actually different to save writes
+            // EXISTS: Update local details
             if (newLocalEvents[matchIndex].title !== gEvent.summary || 
                 newLocalEvents[matchIndex].date !== gEvent.start.date) {
-                    
                 newLocalEvents[matchIndex].title = gEvent.summary;
                 newLocalEvents[matchIndex].date = gEvent.start.date;
-                // Parse priority from description if possible
                 if(gEvent.description && gEvent.description.includes('Priority:')) {
                     const p = gEvent.description.split('Priority:')[1].trim();
                     newLocalEvents[matchIndex].priority = p;
@@ -152,16 +156,15 @@ async function performTwoWaySync(calendarId, localEvents, googleEvents) {
                 newLocalEvents[matchIndex].isSynced = true;
             }
         } else {
-            // MISSING LOCALLY: Add it to App
+            // MISSING LOCALLY: Add it
             let priority = 'low';
             if(gEvent.description && gEvent.description.includes('Priority:')) {
                 priority = gEvent.description.split('Priority:')[1].trim();
             }
-            
             newLocalEvents.push({
                 title: gEvent.summary,
-                date: gEvent.start.date, // YYYY-MM-DD
-                timestamp: new Date().toISOString(), // Generate a new local ID
+                date: gEvent.start.date, 
+                timestamp: new Date().toISOString(), 
                 priority: priority,
                 isDone: false,
                 googleId: gEvent.id,
@@ -171,56 +174,45 @@ async function performTwoWaySync(calendarId, localEvents, googleEvents) {
         }
     });
 
-    // --- B. HANDLE DELETIONS (Google Deleted -> App Delete) ---
-    // If we have a local event with a GoogleID, but that ID is NOT in the fetched Google list,
-    // it means the user deleted it on Google Calendar. We should delete it locally.
+    // --- B. HANDLE DELETIONS ---
     const googleIds = new Set(googleEvents.map(g => g.id));
-    
     const countBefore = newLocalEvents.length;
     newLocalEvents = newLocalEvents.filter(local => {
-        // If it has a Google ID, but that ID is missing from Google download -> Delete it
+        // If it was previously synced (has ID) but missing from Google -> Delete
         if (local.googleId && !googleIds.has(local.googleId)) {
-            return false; // Remove from local
+            return false; 
         }
-        return true; // Keep it
+        return true; 
     });
     stats.deletedFromLocal = countBefore - newLocalEvents.length;
 
-    // --- C. EXPORT TO GOOGLE (App -> Google) ---
-    // Now handle items created locally that haven't been uploaded yet
+    // --- C. EXPORT TO GOOGLE ---
     for (const localEvent of newLocalEvents) {
-        if (localEvent.isSynced && localEvent.googleId) continue; // Already safe
+        if (localEvent.isSynced && localEvent.googleId) continue; 
 
-        // Prepare Resource
+        // Important: If it's marked DONE locally, we still sync it, 
+        // but Google Calendar doesn't have "Done". It just stays as an event.
+        
         const resource = {
             summary: localEvent.title,
             description: `Priority: ${localEvent.priority || 'low'}`,
             start: { date: localEvent.date }, 
-            end: { date: localEvent.date }, // Will fix below
+            end: { date: localEvent.date }, 
             colorId: localEvent.priority === 'high' ? '11' : (localEvent.priority === 'medium' ? '6' : '9')
         };
-
-        // Fix End Date (Exclusive)
         const endDateObj = new Date(localEvent.date);
         endDateObj.setDate(endDateObj.getDate() + 1);
         resource.end.date = endDateObj.toISOString().split('T')[0];
 
         try {
-            // Insert New
             const res = await window.gapi.client.calendar.events.insert({
-                calendarId: calendarId,
-                resource: resource
+                calendarId: calendarId, resource: resource
             });
-            
-            // Update local record with new Google ID
             localEvent.googleId = res.result.id;
             localEvent.isSynced = true;
             stats.uploadedToGoogle++;
-            
-        } catch (err) {
-            console.error(`Upload error for ${localEvent.title}:`, err);
-        }
-        await sleep(150); // Rate limit
+        } catch (err) { console.error(`Upload error:`, err); }
+        await sleep(150); 
     }
 
     return { finalEvents: newLocalEvents, stats };
@@ -229,15 +221,10 @@ async function performTwoWaySync(calendarId, localEvents, googleEvents) {
 export async function deleteSingleEvent(googleId) {
     if (!gapiInited) return { success: false };
     try {
-        const calendarName = 'MedChronos';
         const calList = await window.gapi.client.calendar.calendarList.list();
-        const medCal = calList.result.items.find(c => c.summary === calendarName);
+        const medCal = calList.result.items.find(c => c.summary === 'MedChronos');
         if (!medCal) return { success: true };
-
-        await window.gapi.client.calendar.events.delete({
-            calendarId: medCal.id,
-            eventId: googleId
-        });
+        await window.gapi.client.calendar.events.delete({ calendarId: medCal.id, eventId: googleId });
         return { success: true };
     } catch (e) { return { success: true }; }
 }

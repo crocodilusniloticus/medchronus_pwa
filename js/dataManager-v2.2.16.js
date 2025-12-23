@@ -1,5 +1,5 @@
-import { getLocalISODateString, generateUUID } from './utils-v2.2.15.js';
-import { supabase } from './supabaseClient-v2.2.15.js';
+import { getLocalISODateString, generateUUID } from './utils-v2.2.16.js';
+import { supabase } from './supabaseClient-v2.2.16.js';
 
 let state, refs;
 let isSyncing = false;

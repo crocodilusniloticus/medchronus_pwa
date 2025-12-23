@@ -1,18 +1,18 @@
-import { state } from './js/state.js';
-import refs from './js/uiRefs.js';
-import * as dataManager from './js/dataManager.js';
-import * as charts from './js/charts.js';
-import * as timers from './js/timers.js';
-import * as modals from './js/modals.js';
-import * as views from './js/views.js';
-import * as listeners from './js/listeners.js';
-import * as tools from './js/tools.js';
-import * as manual from './js/manual.js';
-import * as quotes from './js/quotes.js';
-import * as syncModal from './js/syncModal.js';
-import * as authModal from './js/authModal.js';
-import { supabase } from './js/supabaseClient.js';
-import { initGoogleClients } from './js/googleSync.js'; // FIX: Import Google Init
+import { state } from './js/state.js?v=2.2.5';
+import refs from './js/uiRefs.js?v=2.2.5';
+import * as dataManager from './js/dataManager.js?v=2.2.5';
+import * as charts from './js/charts.js?v=2.2.5';
+import * as timers from './js/timers.js?v=2.2.5';
+import * as modals from './js/modals.js?v=2.2.5';
+import * as views from './js/views.js?v=2.2.5';
+import * as listeners from './js/listeners.js?v=2.2.5';
+import * as tools from './js/tools.js?v=2.2.5';
+import * as manual from './js/manual.js?v=2.2.5';
+import * as quotes from './js/quotes.js?v=2.2.5';
+import * as syncModal from './js/syncModal.js?v=2.2.5';
+import * as authModal from './js/authModal.js?v=2.2.5';
+import { supabase } from './js/supabaseClient.js?v=2.2.5';
+import { initGoogleClients } from './js/googleSync.js?v=2.2.5'; // FIX: Import Google Init
 import './js/fa.js'; 
 
 window.state = state;

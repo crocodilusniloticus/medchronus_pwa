@@ -1417,6 +1417,39 @@ body.breathing-mode .breathing-card {
         display: flex;
         flex-direction: column;
     }
+    .study-card .chart-wrapper {
+    display: flex !important;
+    flex-direction: column !important;
+    flex-grow: 1 !important;
+    height: 100% !important;
+    width: 100% !important;
+    justify-content: center !important; /* Centers chart vertically */
+}
+
+.study-card .chart-container {
+    flex-grow: 1 !important;
+    width: 100% !important;
+    min-height: 0 !important; /* Critical for flex containers to scroll/resize properly */
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* Center the Controls and Header in Mobile */
+.study-card .card-header {
+    display: flex !important;
+    justify-content: space-between !important; /* Keeps title left, controls right */
+    align-items: center !important;
+    margin-bottom: 20px !important; /* More breathing room */
+    flex-shrink: 0 !important;
+}
+
+.study-card .chart-controls-group {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 10px !important;
+}
     .performance-card { grid-area: performance; }
 
     /* --- 7. WIDGETS (CALENDAR & SCORE) --- */
@@ -1539,10 +1572,20 @@ body.breathing-mode .breathing-card {
         padding-bottom: 20px !important;
     }
     .breathing-circle-container { margin: auto !important; }
-    .breathing-footer { margin-top: 30px !important; }
-
-    .tasks-card { grid-area: tasks; max-height: 400px; overflow-y: auto; }
-    .log-card { grid-area: log; max-height: 400px; overflow-y: auto; }
+.breathing-footer { 
+    /* CHANGED: Switched from absolute to relative so it flows naturally */
+    position: relative; 
+    bottom: auto; /* Removes the bottom pinning */
+    
+    /* ADDED: This is the gap between "Inhale" text and "Style" button */
+    margin-top: 30px; 
+    
+    width: 100%; 
+    display: flex; 
+    justify-content: center; 
+}    
+    .tasks-card { grid-area: tasks; max-height: 400px !important; overflow-y: auto; }
+    .log-card { grid-area: log; max-height: 400px !important; overflow-y: auto; }
 
     /* --- 10. ZEN MODE --- */
     body.focus-mode .timer-card,

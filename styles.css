@@ -1552,7 +1552,7 @@ body.breathing-mode .breathing-card {
         left: 0 !important;
         width: 100vw !important;
         height: 100vh !important;
-        z-index: 99999 !important;
+        z-index: 99998 !important;
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;

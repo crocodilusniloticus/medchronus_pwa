@@ -1,5 +1,5 @@
-import { getLocalISODateString, injectJalaaliDate, generateUUID } from './utils.js?v=2.2.6';
-import { saveAudioFile, getAudioFile } from './database.js?v=2.2.6';
+import { getLocalISODateString, injectJalaaliDate, generateUUID } from './utils.js?v=2.2.7';
+import { saveAudioFile, getAudioFile } from './database.js?v=2.2.7';
 
 let state, refs, dataManager, updateAllDisplays;
 let getTimeChartOptions, getScoreChartOptions, getCharts, getTrendChartOptions; 

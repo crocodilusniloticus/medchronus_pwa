@@ -1,4 +1,4 @@
-import { getLocalISODateString, getPersianDateString } from './utils.js?v=2.2.6';
+import { getLocalISODateString, getPersianDateString } from './utils.js?v=2.2.7';
 
 let state, refs;
 

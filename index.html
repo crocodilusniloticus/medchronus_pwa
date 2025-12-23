@@ -8,17 +8,17 @@
     
     <title>MedChronos</title>
     
-    <link rel="stylesheet" href="css/flatpickr.min.css?v=2.2.4">
-    <link rel="stylesheet" href="css/airbnb.css?v=2.2.4">
-    <link rel="stylesheet" href="styles.css?v=2.2.4">
+    <link rel="stylesheet" href="css/flatpickr.min.css?v=2.2.7">
+    <link rel="stylesheet" href="css/airbnb.css?v=2.2.7">
+    <link rel="stylesheet" href="styles.css?v=2.2.7">
     
     <!-- Google Identity Services -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script src="https://apis.google.com/js/api.js?v=2.2.4" async defer></script>
+    <script src="https://apis.google.com/js/api.js?v=2.2.7" async defer></script>
 
     <!-- External Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js?v=2.2.4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js?v=2.2.7"></script>
     <script src="https://unpkg.com/@popperjs/core@2"></script>
     <script src="https://unpkg.com/tippy.js@6"></script>
 
@@ -410,11 +410,11 @@
     
     <audio id="alarm-sound"></audio>
     
-    <script type="module" src="./renderer.js?v=2.2.4"></script>
+    <script type="module" src="./renderer.js?v=2.2.7"></script>
     <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./service-worker.js?v=2.2.5')
+            navigator.serviceWorker.register('./service-worker.js?v=2.2.7')
                 .then((registration) => {
                     console.log('✅ ServiceWorker registration successful with scope: ', registration.scope);
                 })

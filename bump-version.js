@@ -99,19 +99,19 @@ function updateContent(filePath, maps) {
     let original = content;
 
     maps.forEach(map => {
-        // Regex Explanation:
-        // 1. Prefix: quotes, slash, or whitespace
-        // 2. Base name (e.g. "renderer" or "timers")
-        // 3. Optional old version string (-v2.2.4)
-        // 4. Extension
-        // 5. Suffix: quotes or whitespace
+        const safeBase = map.baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         
-        // This handles: href="styles.css", href="styles-v2.2.4.css", import ... './js/timers.js'
+        // REGEX EXPLANATION:
+        // 1. Prefix: quotes, slash, or space
+        // 2. Base Name
+        // 3. Optional Old Version in filename (e.g. -v2.2.5)
+        // 4. Extension (.js or .css)
+        // 5. OPTIONAL: Old Query String (e.g. ?v=2.2.4) -- THIS WAS MISSING
+        // 6. Suffix: quotes or space
+        const regex = new RegExp(`(['"/\\s])(${safeBase})(-v[0-9\\.]+)?\\.${map.ext}(\\?v=[0-9\\.]+)?(['"])`, 'g');
         
-        const safeBase = map.baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escape regex chars
-        const regex = new RegExp(`(['"/\\s])(${safeBase})(-v[0-9\\.]+)?\\.${map.ext}(['"])`, 'g');
-        
-        content = content.replace(regex, `$1${map.newName}$4`);
+        // Replace with: Prefix + NewName + Suffix (Deleting the query string entirely)
+        content = content.replace(regex, `$1${map.newName}$5`);
     });
 
     if (content !== original) {

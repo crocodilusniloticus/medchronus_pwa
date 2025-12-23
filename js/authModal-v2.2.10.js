@@ -1,5 +1,5 @@
-import { supabase } from './supabaseClient.js?v=2.2.8';
-import { syncWithSupabase } from './dataManager.js?v=2.2.8';
+import { supabase } from './supabaseClient-v2.2.10.js';
+import { syncWithSupabase } from './dataManager-v2.2.10.js';
 
 const modalHTML = `
 <div id="auth-modal" class="modal-overlay">

@@ -3,161 +3,110 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 // ================= CONFIGURATION =================
-// Define the files/folders we want to version-control aggressively
-const MANAGED_ROOT_FILES = ['renderer.js', 'styles.css']; // Files in root
-const MANAGED_SUBFOLDERS = ['js']; // Folders to scan for JS files
+const LOCAL_JS_FILES = [
+    'authModal', 'bump-version', 'charts', 'database', 'dataManager', 'fa', 
+    'googleSync', 'listeners', 'local-server', 'manual', 'modals', 'quotes', 
+    'state', 'supabaseClient', 'syncModal', 'timers', 'tools', 'uiRefs', 'utils', 'views'
+];
 // =================================================
 
-// 1. Read package.json & Increment Version
+// 1. Increment Version
 const packagePath = path.join(__dirname, 'package.json');
 const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
-
 const versionParts = pkg.version.split('.');
 versionParts[2] = parseInt(versionParts[2]) + 1;
 const newVersion = versionParts.join('.');
 pkg.version = newVersion;
-
-console.log(`🚀 Bumping version to v${newVersion} (NUCLEAR MODE)...`);
+console.log(`🚀 Bumping to v${newVersion}...`);
 fs.writeFileSync(packagePath, JSON.stringify(pkg, null, 2));
 
-// Helper: Find current file on disk matching a base name
-// e.g., looks for "renderer*.js" -> returns "renderer-v2.2.4.js"
-function findCurrentFile(dir, baseName, ext) {
+// Helper: Find file on disk
+function findFileOnDisk(dir, base, ext) {
     const files = fs.readdirSync(dir);
-    // Regex finds: baseName + optional version + extension
-    const pattern = new RegExp(`^${baseName}.*\\.${ext}$`);
-    return files.find(f => pattern.test(f));
+    const regex = new RegExp(`^${base}(?:-v[0-9\\.]+)?\\.${ext}$`);
+    return files.find(f => regex.test(f));
 }
 
-// 2. RENAME FILES & BUILD MAP
-// We create a map of { oldFileName: newFileName, baseName: newFileName }
-const fileMap = []; // Array of objects: { dir, oldName, newName, baseName, ext }
+// 2. RENAME LOCAL FILES (Nuclear Strategy)
+const fileMap = []; 
 
-// A. Scan Root Files
-MANAGED_ROOT_FILES.forEach(filename => {
-    const ext = filename.split('.').pop(); // 'js' or 'css'
-    const base = filename.replace(`.${ext}`, ''); // 'renderer' or 'styles'
-    
-    const current = findCurrentFile(__dirname, base, ext);
-    if (current) {
-        const newName = `${base}-v${newVersion}.${ext}`;
-        fileMap.push({
-            dir: __dirname,
-            oldName: current,
-            newName: newName,
-            baseName: base,
-            ext: ext,
-            isRoot: true
-        });
+// A. Root Files (renderer.js, styles.css)
+['renderer', 'styles'].forEach(base => {
+    let ext = base === 'styles' ? 'css' : 'js';
+    const oldName = findFileOnDisk(__dirname, base, ext);
+    if (oldName) {
+        fileMap.push({ base, ext, oldName, newName: `${base}-v${newVersion}.${ext}`, dir: __dirname });
     }
 });
 
-// B. Scan JS Subfolder
-MANAGED_SUBFOLDERS.forEach(sub => {
-    const dirPath = path.join(__dirname, sub);
-    if (fs.existsSync(dirPath)) {
-        const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.js'));
-        files.forEach(f => {
-            // Logic: if file is "timers-v2.2.4.js", base is "timers"
-            // If file is "timers.js", base is "timers"
-            let base = f.replace('.js', '');
-            if (base.includes('-v')) {
-                base = base.split('-v')[0];
-            }
-            
-            const newName = `${base}-v${newVersion}.js`;
-            fileMap.push({
-                dir: dirPath,
-                oldName: f,
-                newName: newName,
-                baseName: base,
-                ext: 'js',
-                isRoot: false,
-                subFolder: sub
-            });
-        });
-    }
-});
+// B. JS Folder Files
+const jsDir = path.join(__dirname, 'js');
+if (fs.existsSync(jsDir)) {
+    LOCAL_JS_FILES.forEach(base => {
+        const oldName = findFileOnDisk(jsDir, base, 'js');
+        if (oldName) {
+            fileMap.push({ base, ext: 'js', oldName, newName: `${base}-v${newVersion}.js`, dir: jsDir });
+        }
+    });
+}
 
 // C. Execute Renames
-console.log(`☢️  Renaming ${fileMap.length} files...`);
-fileMap.forEach(file => {
-    if (file.oldName !== file.newName) {
-        fs.renameSync(path.join(file.dir, file.oldName), path.join(file.dir, file.newName));
-        console.log(`   ${file.oldName} -> ${file.newName}`);
+console.log(`☢️  Renaming ${fileMap.length} local files...`);
+fileMap.forEach(f => {
+    if (f.oldName !== f.newName) {
+        fs.renameSync(path.join(f.dir, f.oldName), path.join(f.dir, f.newName));
     }
 });
 
-// 3. UPDATE REFERENCES (The "Find & Replace" Logic)
-// We need to look for strings that reference the Base Name and update them to New Name
+// 3. UPDATE REFERENCES (HTML, SW, JS Imports)
+const filesToUpdate = [
+    path.join(__dirname, 'index.html'),
+    path.join(__dirname, 'service-worker.js'),
+    ...fileMap.filter(f => f.ext === 'js').map(f => path.join(f.dir, f.newName))
+];
 
-// Helper: Global Replace function
-function updateContent(filePath, maps) {
+console.log(`📝 Updating references...`);
+
+filesToUpdate.forEach(filePath => {
     if (!fs.existsSync(filePath)) return;
     
     let content = fs.readFileSync(filePath, 'utf8');
     let original = content;
 
-    maps.forEach(map => {
-        const safeBase = map.baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        
-        // REGEX EXPLANATION:
-        // 1. Prefix: quotes, slash, or space
-        // 2. Base Name
-        // 3. Optional Old Version in filename (e.g. -v2.2.5)
-        // 4. Extension (.js or .css)
-        // 5. OPTIONAL: Old Query String (e.g. ?v=2.2.4) -- THIS WAS MISSING
-        // 6. Suffix: quotes or space
-        const regex = new RegExp(`(['"/\\s])(${safeBase})(-v[0-9\\.]+)?\\.${map.ext}(\\?v=[0-9\\.]+)?(['"])`, 'g');
-        
-        // Replace with: Prefix + NewName + Suffix (Deleting the query string entirely)
-        content = content.replace(regex, `$1${map.newName}$5`);
+    // A. Fix Service Worker Cache Name
+    if (filePath.includes('service-worker.js')) {
+        content = content.replace(/const CACHE_NAME = ['"].*['"];/, `const CACHE_NAME = 'medchronos-v${newVersion}-production';`);
+    }
+
+    // B. Update LOCAL FILE References (Renaming)
+    fileMap.forEach(map => {
+        const safeBase = map.base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Regex: Matches quotes/space + base + optional version + extension + optional query + quote
+        // e.g., "./renderer.js" OR "./renderer-v2.2.8.js"
+        const regex = new RegExp(`(['"/\\s])(${safeBase})(?:-v[0-9\\.]+)?\\.${map.ext}(?:\\?v=[0-9\\.]+)?(['"])`, 'g');
+        content = content.replace(regex, `$1${map.newName}$3`);
     });
+
+    // C. Update CDN/External References (Query String Only)
+    // Matches any .css or .js that IS NOT in our local fileMap, and updates ?v=...
+    // This targets things like 'airbnb.css?v=...' or 'echarts.min.js?v=...'
+    content = content.replace(
+        /(\.css|\.js)\?v=[0-9\.]+(["'])/g, 
+        `$1?v=${newVersion}$2`
+    );
 
     if (content !== original) {
         fs.writeFileSync(filePath, content);
-        console.log(`   📝 Updated refs in: ${path.basename(filePath)}`);
-    }
-}
-
-// A. Update index.html
-updateContent(path.join(__dirname, 'index.html'), fileMap);
-
-// B. Update service-worker.js (+ Cache Name)
-const swPath = path.join(__dirname, 'service-worker.js');
-if (fs.existsSync(swPath)) {
-    let swContent = fs.readFileSync(swPath, 'utf8');
-    // Update Cache Name
-    swContent = swContent.replace(/const CACHE_NAME = ['"].*['"];/, `const CACHE_NAME = 'medchronos-v${newVersion}-production';`);
-    fs.writeFileSync(swPath, swContent);
-    // Update File Refs
-    updateContent(swPath, fileMap);
-}
-
-// C. Update ALL JS files (to fix imports)
-// We scan the *new* filenames now
-fileMap.forEach(file => {
-    if (file.ext === 'js') {
-        updateContent(path.join(file.dir, file.newName), fileMap);
     }
 });
 
 // 4. Git Commit & Tag
 try {
-    console.log('📦 Staging files...');
-    // We must add the new files and "delete" the old ones (git handles rename detection usually, but "add ." catches all)
+    console.log('📦 Committing & Tagging...');
     execSync('git add .');
-    
-    console.log('📦 Committing...');
-    execSync(`git commit -m "🔖 Release v${newVersion}: Renamed ALL assets"`);
-    
-    console.log('🏷️  Tagging...');
+    execSync(`git commit -m "🔖 Release v${newVersion}"`);
     execSync(`git tag -a v${newVersion} -m "Release v${newVersion}"`);
-    console.log(`✅ Tagged v${newVersion}`);
-
     console.log(`\n🎉 DONE! Run: git push origin main --follow-tags`);
-    
-} catch (error) {
-    console.error('❌ Git failed:', error.message);
-    process.exit(1);
+} catch (e) {
+    console.error('Git error:', e.message);
 }

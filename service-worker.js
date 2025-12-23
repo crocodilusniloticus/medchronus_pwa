@@ -1,30 +1,30 @@
-const CACHE_NAME = 'medchronos-v2.2.11-production'; 
+const CACHE_NAME = 'medchronos-v2.2.12-production'; 
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './styles-v2.2.11.css',
-  './css/airbnb.css?v=2.2.7',
-  './css/flatpickr.min.css?v=2.2.7',
-  './renderer-v2.2.11.js',
-  './js/charts-v2.2.11.js',
-  './js/dataManager-v2.2.11.js',
-  './js/fa-v2.2.11.js',
-  './js/googleSync-v2.2.11.js',
-  './js/listeners-v2.2.11.js',
-  './js/manual-v2.2.11.js',
-  './js/modals-v2.2.11.js',
-  './js/quotes-v2.2.11.js',
-  './js/state-v2.2.11.js',
-  './js/syncModal-v2.2.11.js',
-  './js/timers-v2.2.11.js',
-  './js/tools-v2.2.11.js',
-  './js/uiRefs-v2.2.11.js',
-  './js/utils-v2.2.11.js',
-  './js/views-v2.2.11.js',
-  'https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.js?v=2.2.8',
-  'https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js?v=2.2.8',
-  'https://unpkg.com/@popperjs/core@2/dist/umd/popper.min.js?v=2.2.8',
-  'https://unpkg.com/tippy.js@6/dist/tippy-bundle.umd.min.js?v=2.2.8'
+  './styles-v2.2.12.css',
+  './css/airbnb.css?v=2.2.12',
+  './css/flatpickr.min.css?v=2.2.12',
+  './renderer-v2.2.12.js',
+  './js/charts-v2.2.12.js',
+  './js/dataManager-v2.2.12.js',
+  './js/fa-v2.2.12.js',
+  './js/googleSync-v2.2.12.js',
+  './js/listeners-v2.2.12.js',
+  './js/manual-v2.2.12.js',
+  './js/modals-v2.2.12.js',
+  './js/quotes-v2.2.12.js',
+  './js/state-v2.2.12.js',
+  './js/syncModal-v2.2.12.js',
+  './js/timers-v2.2.12.js',
+  './js/tools-v2.2.12.js',
+  './js/uiRefs-v2.2.12.js',
+  './js/utils-v2.2.12.js',
+  './js/views-v2.2.12.js',
+  'https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.js?v=2.2.12',
+  'https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js?v=2.2.12',
+  'https://unpkg.com/@popperjs/core@2/dist/umd/popper.min.js?v=2.2.12',
+  'https://unpkg.com/tippy.js@6/dist/tippy-bundle.umd.min.js?v=2.2.12'
 ];
 
 self.addEventListener('install', (event) => {
@@ -57,7 +57,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request).catch(() => {
         // ADDED: { ignoreSearch: true }
-        // This tells it to treat "styles-v2.2.11.css" the same as "styles-v2.2.11.css"
+        // This tells it to treat "styles-v2.2.12.css" the same as "styles-v2.2.12.css"
         return caches.match(event.request, { ignoreSearch: true }); 
       })
     );

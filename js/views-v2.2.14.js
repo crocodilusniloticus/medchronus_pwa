@@ -1,4 +1,4 @@
-import { getLocalISODateString, getPersianDateString, injectJalaaliDate } from './utils-v2.2.13.js';
+import { getLocalISODateString, getPersianDateString, injectJalaaliDate } from './utils-v2.2.14.js';
 
 let state, refs, showEventModal, logSession;
 

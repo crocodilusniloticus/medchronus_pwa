@@ -1410,47 +1410,55 @@ body.breathing-mode .breathing-card {
     .timer-mode-switcher { margin: 0 auto 15px auto; width: 90%; justify-content: center; }
     .mode-tab { flex: 1; text-align: center; }
 
-    /* --- 6. ANALYTICS --- */
+/* --- 6. ANALYTICS --- */
     .study-card, .performance-card {
         grid-area: study;
-        min-height: 380px; 
+        min-height: 420px; /* Increased slightly for iOS safe area */
         display: flex;
         flex-direction: column;
     }
-    .study-card .chart-wrapper {
-    display: flex !important;
-    flex-direction: column !important;
-    flex-grow: 1 !important;
-    height: 100% !important;
-    width: 100% !important;
-    justify-content: center !important; /* Centers chart vertically */
-}
-
-.study-card .chart-container {
-    flex-grow: 1 !important;
-    width: 100% !important;
-    min-height: 0 !important; /* Critical for flex containers to scroll/resize properly */
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-}
-
-/* Center the Controls and Header in Mobile */
-.study-card .card-header {
-    display: flex !important;
-    justify-content: space-between !important; /* Keeps title left, controls right */
-    align-items: center !important;
-    margin-bottom: 20px !important; /* More breathing room */
-    flex-shrink: 0 !important;
-}
-
-.study-card .chart-controls-group {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: flex-end !important;
-    gap: 10px !important;
-}
+    
     .performance-card { grid-area: performance; }
+
+    /* FIX 1: Remove "center" alignment. Safari hates centering canvas in flex. */
+    .study-card .chart-wrapper {
+        display: flex !important;
+        flex-direction: column !important;
+        flex-grow: 1 !important;
+        width: 100% !important;
+        justify-content: flex-start !important; /* Stack from top, don't float in middle */
+        overflow: hidden; /* Stops iOS scroll bounce inside card */
+    }
+
+    /* FIX 2: Force explicit height behavior for Safari */
+    .study-card .chart-container {
+        flex-grow: 1 !important;
+        width: 100% !important;
+        display: block !important; /* Flex interferes with ECharts resize on iOS */
+        position: relative !important;
+        min-height: 250px !important; /* CRITICAL: Forces iOS to respect height */
+    }
+
+    /* FIX 3: Header Spacing on Mobile */
+    .study-card .card-header {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        margin-bottom: 15px !important;
+        flex-shrink: 0 !important;
+        gap: 10px;
+    }
+
+    /* FIX 4: Prevent controls from overlapping title */
+    .study-card .chart-controls-group {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        gap: 8px !important;
+        flex-wrap: wrap !important;
+        width: 100%; /* Ensure it can take full width if needed */
+    }
 
     /* --- 7. WIDGETS (CALENDAR & SCORE) --- */
     .calendar-card {

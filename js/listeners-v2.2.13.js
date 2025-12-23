@@ -1,4 +1,4 @@
-import { pushEventsToGoogle, handleSignoutClick, deleteSingleEvent } from './googleSync-v2.2.12.js'; 
+import { pushEventsToGoogle, handleSignoutClick, deleteSingleEvent } from './googleSync-v2.2.13.js'; 
 
 let refs, timers, modals, charts, views, dataManager, state, updateAllDisplays;
 let statusTimeout = null; 

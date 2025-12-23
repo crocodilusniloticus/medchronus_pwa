@@ -1,8 +1,8 @@
-const CACHE_NAME = 'medchronos-v2.2.8-production'; 
+const CACHE_NAME = 'medchronos-v2.2.9-production'; 
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './styles-v2.2.8.css',
+  './styles-v2.2.9.css',
   './css/airbnb.css?v=2.2.7',
   './css/flatpickr.min.css?v=2.2.7',
   './renderer.js?v=2.2.8',

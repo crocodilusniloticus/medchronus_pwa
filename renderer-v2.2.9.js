@@ -13,7 +13,7 @@ import * as syncModal from './js/syncModal.js?v=2.2.8';
 import * as authModal from './js/authModal.js?v=2.2.8';
 import { supabase } from './js/supabaseClient.js?v=2.2.8';
 import { initGoogleClients } from './js/googleSync.js?v=2.2.8'; // FIX: Import Google Init
-import './js/fa.js'; 
+import './js/fa-v2.2.9.js'; 
 
 window.state = state;
 
@@ -26,7 +26,7 @@ function initializeApp() {
         setTimeout(() => {
             initGoogleClients();
             if (localStorage.getItem('google_auth_active') === 'true') {
-                import('./js/googleSync.js').then(module => {
+                import('./js/googleSync-v2.2.9.js').then(module => {
                     module.handleAuthClick().catch(e => console.log("Auto-restore silent auth failed"));
                 });
             }

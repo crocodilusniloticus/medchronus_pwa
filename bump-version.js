@@ -52,7 +52,11 @@ try {
     console.log('📦 Staging and Committing...');
     execSync('git add .');
     execSync(`git commit -m "🔖 Release v${newVersion}: Auto-bumped for rapid deploy"`);
-    console.log(`🎉 Ready! Run 'git push' to deploy.`);
+    
+    // ADD THIS LINE:
+    execSync(`git tag v${newVersion}`);
+    
+    console.log(`🎉 Ready! Run 'git push --follow-tags' to deploy.`);
 } catch (error) {
-    console.error('Git automation failed (you might need to do it manually):', error.message);
+    console.error('Git automation failed:', error.message);
 }

@@ -1,6 +1,6 @@
 {
   "name": "medchronos",
-  "version": "2.2.3",
+  "version": "2.2.4",
   "description": "A study tracker for medical exams.",
   "main": "main.js",
   "repository": {
@@ -10,7 +10,7 @@
   "scripts": {
     "start": "electron .",
     "bump": "node bump-version.js",
-    "ship": "node bump-version.js && git push origin main",
+    "ship": "node bump-version.js && git push origin main --follow-tags",
     "dist": "electron-builder",
     "publish": "electron-builder --publish always"
   },

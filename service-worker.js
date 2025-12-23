@@ -1,4 +1,4 @@
-const CACHE_NAME = 'medchronos-v2.2.2-production'; 
+const CACHE_NAME = 'medchronos-v2.2.3-production'; 
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

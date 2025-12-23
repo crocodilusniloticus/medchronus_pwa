@@ -1556,6 +1556,6 @@ body.breathing-mode .breathing-card {
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
-        border-radius: 0.1 !important;
+        border-radius: 0 !important;
     }
 }

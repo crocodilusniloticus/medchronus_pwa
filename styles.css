@@ -1,3 +1,8 @@
+html {
+    touch-action: manipulation; /* Removes tap delay on buttons */
+    -webkit-tap-highlight-color: transparent; /* Removes blue flash on iOS clicks */
+}
+
 :root {
     /* =========================================
        THE MONET PALETTE (Ultimate Visibility)
@@ -1279,4 +1284,278 @@ body.focus-mode .timer-card,
 body.breathing-mode .breathing-card {
     max-height: none !important;
     align-self: stretch !important;
+}
+
+/* =========================================
+   MOBILE "IOS WIDGET" LAYOUT (Corrected)
+   ========================================= */
+
+@media screen and (max-width: 1400px) {
+    /* --- 1. GLOBAL IOS & SCROLL RESET --- */
+    body {
+        height: auto;
+        min-height: 100vh;
+        overflow-y: auto;
+        overflow-x: auto;
+        background-attachment: fixed;
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+    body::-webkit-scrollbar { display: none; }
+
+    .app-container {
+        min-width: 100%;
+        width: 100%;
+        height: auto;
+        display: flex;
+        flex-direction: column;
+        padding: 10px;
+        gap: 20px;
+    }
+
+    /* --- 2. THE HEADER --- */
+    .app-header {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 3px !important;
+        padding: 5px 10px !important;
+        height: auto !important;
+        margin-bottom: 2px !important;
+        background: transparent !important;
+    }
+
+    .header-brand {
+        width: auto !important;
+        flex: 0 1 auto !important;
+        gap: 8px !important;
+    }
+    
+    .logo-icon { font-size: 22px !important; }
+    
+    .header-brand h1 {
+        font-size: 0.9rem !important;
+        white-space: nowrap !important;
+    }
+
+    .streak-badge {
+        flex-grow: 0 !important;
+        width: auto !important;
+        padding: 4px 8px !important;
+        height: 32px !important;
+        gap: 6px !important;
+        margin: 0 !important;
+    }
+    
+    .streak-label { display: none !important; }
+    
+    #streak-count {
+        font-size: 1rem !important;
+        line-height: 1 !important;
+    }
+
+    .header-actions {
+        width: auto !important;
+        gap: 6px !important;
+        justify-content: flex-end !important;
+    }
+    
+    .icon-btn {
+        width: 34px !important;
+        height: 34px !important;
+        padding: 6px !important;
+        font-size: 1rem !important;
+    }
+
+    /* --- 3. THE GRID (Optimized for Thin Sound Bar) --- */
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: 325px 1fr; /* Two columns for Cal/Score */
+        grid-template-rows: auto;
+        gap: 12px;
+        
+        grid-template-areas: 
+            "timer timer"
+            "study study"
+            "performance performance"
+            "control-cal control-score"  /* Row 1: Calendar & Score */
+            "control-sound control-sound" /* Row 2: Thin Sound Bar */
+            "breath breath"
+            "tasks tasks"
+            "log log";
+    }
+
+    .left-stack, .tools-stack {
+        display: contents !important;
+    }
+    
+
+    /* --- 4. GENERAL CARD STYLES --- */
+    .card, .timer-card, .log-card, .tasks-card, .sound-card, .score-card {
+        max-height: none !important;
+        height: auto !important;
+        width: 100%;
+        min-height: 0;
+        overflow: visible;
+        border-radius: 18px !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+    }
+
+    /* --- 5. TIMER --- */
+    .timer-card { 
+        grid-area: timer; 
+        padding: 20px 10px;
+    }
+    .main-timer-text { font-size: 3.5rem; }
+    .timer-mode-switcher { margin: 0 auto 15px auto; width: 90%; justify-content: center; }
+    .mode-tab { flex: 1; text-align: center; }
+
+    /* --- 6. ANALYTICS --- */
+    .study-card, .performance-card {
+        grid-area: study;
+        min-height: 380px; 
+        display: flex;
+        flex-direction: column;
+    }
+    .performance-card { grid-area: performance; }
+
+    /* --- 7. WIDGETS (CALENDAR & SCORE) --- */
+    .calendar-card {
+        grid-area: control-cal;
+        background: var(--card-cal-bg) !important;
+        padding: 8px !important;
+    }
+    .calendar-card .card-header, .calendar-card .text-link-btn { display: none !important; }
+    
+    /* Calendar Days Spacing */
+    .calendar-card .flatpickr-day {
+        width: 14% !important;
+        height: 38px !important;
+        font-size: 0.85rem !important;
+        display: flex !important;
+        flex-direction: column;
+        align-items: flex-end;
+        padding: 4px 6px 0 0 !important;
+    }
+
+.score-card {
+        grid-area: control-score;
+        background: #ffffff !important;
+        padding: 15px 25px 15px 15px !important; /* Extra padding on the right */
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    .score-card .card-header { display: none !important; }
+
+    /* Target the inner container that holds the 3 elements */
+    .score-card .score-grid {
+        display: flex !important;
+        flex-direction: column !important; /* Force the 3-row stack */
+        gap: 12px !important;
+        width: 100% !important;
+    }
+
+    /* Row 1: Course Selector */
+    #scoreCourseSelect {
+        width: 100% !important;
+        height: 40px !important;
+    }
+
+    /* Row 2: Score Input */
+    #scoreInput {
+        width: 100% !important;
+        font-size: 2.2rem !important;
+        font-weight: 800 !important;
+        text-align: center !important;
+        color: #2d43a6 !important;
+        border: none !important;
+        background: transparent !important;
+    }
+
+    /* Row 3: Log Button */
+    #logScoreButton {
+        width: 100% !important;
+        height: 45px !important;
+        border-radius: 12px !important;
+    }
+
+    /* Adjust the notes area below the grid */
+    #scoreNotes {
+        margin-top: 10px !important;
+        width: 100% !important;
+        min-height: 100px !important; /* Gives it a proper box shape */
+        max-height: 150px !important; /* Prevents the card from getting too tall */
+        overflow-y: auto !important;  /* Enables vertical scrolling */
+        line-height: 1.4 !important;
+        padding: 8px !important;
+        resize: none !important;      /* Keeps the UI clean on mobile */
+    }
+    .calendar-card, .score-card {
+        height: 100% !important;
+        min-height: 300px !important; /* Ensures they both share a uniform base height */
+    }
+
+
+/* --- 8. THE SOUND BAR (Thin Bar Fix) --- */
+.sound-card {
+    grid-area: control-sound;
+    height: 54px !important; /* Thin height */
+    padding: 0 15px !important;
+    display: flex;
+    flex-direction: row !important; /* Forces items side-by-side */
+        align-items: center;
+        justify-content: center;
+        background: #ffffff !important;
+    }
+    
+    .sound-card .card-header, .volume-slider-container { 
+        display: none !important; 
+    }
+
+    .sound-controls { 
+        margin: 0 !important; 
+        width: 100%;
+    }
+
+    .sound-btn-row { 
+        flex-direction: row !important; 
+        justify-content: center !important;
+        gap: 15px !important; 
+    }
+
+    .sound-btn, .sound-stop-btn {
+        width: 38px !important;
+        height: 38px !important;
+        font-size: 1.1rem !important;
+        border-radius: 12px !important;
+    }
+
+    /* --- 9. BREATHING & OTHERS --- */
+    .breathing-card { 
+        grid-area: breath; 
+        min-height: 250px; 
+        justify-content: space-between !important;
+        padding-bottom: 20px !important;
+    }
+    .breathing-circle-container { margin: auto !important; }
+    .breathing-footer { margin-top: 30px !important; }
+
+    .tasks-card { grid-area: tasks; max-height: 400px; overflow-y: auto; }
+    .log-card { grid-area: log; max-height: 400px; overflow-y: auto; }
+
+    /* --- 10. ZEN MODE --- */
+    body.focus-mode .timer-card,
+    body.breathing-mode .breathing-card {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        z-index: 99999 !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        border-radius: 0 !important;
+    }
 }

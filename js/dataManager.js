@@ -1,4 +1,4 @@
-import { getLocalISODateString } from './utils.js';
+import { getLocalISODateString, generateUUID } from './utils.js';
 import { supabase } from './supabaseClient.js';
 
 let state, refs;
@@ -85,16 +85,24 @@ export async function saveData(forcePush = false) {
     calculateStreak();
 
     // 2. Trigger Cloud Sync
-    // If forcePush is true, we await it to ensure deletion happens before anything else.
     await syncWithSupabase(forcePush);
 }
 
 export function loadData() {
-    state.allSessions = (JSON.parse(localStorage.getItem('studySessions')) || [])
+    // Helper to ensure every item has a UUID for reliable syncing
+    const ensureIDs = (arr) => arr.map(item => {
+        if (!item.id) {
+    // Falls back to timestamp if available, ensuring Device A and B generate the same ID
+    item.id = item.timestamp ? `legacy-${item.timestamp}` : generateUUID();
+}
+        return item;
+    });
+
+    state.allSessions = ensureIDs(JSON.parse(localStorage.getItem('studySessions')) || [])
         .filter(s => s && s.timestamp && s.course);
-    state.allScores = (JSON.parse(localStorage.getItem('studyScores')) || [])
+    state.allScores = ensureIDs(JSON.parse(localStorage.getItem('studyScores')) || [])
         .filter(s => s && s.timestamp && s.course);
-    state.allEvents = (JSON.parse(localStorage.getItem('studyEvents')) || [])
+    state.allEvents = ensureIDs(JSON.parse(localStorage.getItem('studyEvents')) || [])
         .map(e => ({...e, isDone: typeof e.isDone === 'boolean' ? e.isDone : false}))
         .filter(e => e && e.date && e.title && e.timestamp);
     
@@ -136,7 +144,7 @@ export function loadData() {
 }
 
 // -------------------------------------------------------------------------
-// SYNC ENGINE
+// SYNC ENGINE (UUID Aware)
 // -------------------------------------------------------------------------
 export async function syncWithSupabase(forcePush = false) {
     if (isSyncing || !navigator.onLine) return;
@@ -151,7 +159,6 @@ export async function syncWithSupabase(forcePush = false) {
         let merged = false;
 
         // STEP 1: Fetch Cloud Data (ONLY if NOT force pushing)
-        // If forcePush is true, we assume Local is the authority (e.g., after a delete)
         if (!forcePush) {
             const { data: cloudRow, error } = await supabase
                 .from('user_data')
@@ -166,13 +173,26 @@ export async function syncWithSupabase(forcePush = false) {
             if (cloudRow && cloudRow.content) {
                 const cloudData = cloudRow.content;
                 
-                // Smart Merge Logic
+                // UUID-Based Smart Merge
+                // If ID exists, match by ID. If not, match by Timestamp (Legacy).
+                // Local edits override Cloud.
                 const mergeArrays = (localArr, cloudArr) => {
                     const map = new Map();
-                    // Local items take precedence if timestamps match
-                    [...cloudArr, ...localArr].forEach(item => {
-                        if (item.timestamp) map.set(item.timestamp, item);
+                    
+                    // 1. Put Cloud items in map
+                    cloudArr.forEach(item => {
+                        const key = item.id || item.timestamp;
+                        if(key) map.set(key, item);
                     });
+
+                    // 2. Overwrite with Local items
+                    localArr.forEach(item => {
+                        // Ensure local item has ID
+                        if(!item.id) item.id = generateUUID(); 
+                        const key = item.id || item.timestamp;
+                        if(key) map.set(key, item);
+                    });
+                    
                     return Array.from(map.values());
                 };
 
@@ -191,14 +211,13 @@ export async function syncWithSupabase(forcePush = false) {
                     state.allEvents = mergedEvents;
                     state.allCourses = mergedCourses;
                     
-                    // Save merged data locally without triggering another sync loop
                     saveData(false); 
                     merged = true;
                 }
             }
         }
 
-        // STEP 2: Push Local Data to Cloud (Overwrite)
+        // STEP 2: Push Local Data to Cloud
         const payload = {
             sessions: state.allSessions,
             scores: state.allScores,
@@ -223,7 +242,6 @@ export async function syncWithSupabase(forcePush = false) {
         updateSyncStatus("Cloud Error", true);
     } finally {
         isSyncing = false;
-        // Trigger UI refresh
         window.dispatchEvent(new CustomEvent('data-updated'));
     }
 }
@@ -237,6 +255,132 @@ function updateSyncStatus(msg, isError) {
             if(refs.syncStatus) refs.syncStatus.style.opacity = '0'; 
         }, 3000);
     }
+}
+
+// -------------------------------------------------------------------------
+// RECOVERY LOGIC (Timer Persistence)
+// -------------------------------------------------------------------------
+
+export function restoreActiveTimer() {
+    const recoveredTimer = JSON.parse(localStorage.getItem('activeTimer'));
+    if (!recoveredTimer || !recoveredTimer.startTime) {
+        localStorage.removeItem('activeTimer');
+        return;
+    }
+
+    const now = Date.now();
+    
+    try {
+        if (recoveredTimer.isPaused) {
+            // If paused, we just reload the state variables
+            if (recoveredTimer.type === 'stopwatch') {
+                state.stopwatchStartTime = recoveredTimer.startTime;
+                state.stopwatchSeconds = recoveredTimer.pausedSeconds;
+                state.isStopwatchPaused = true;
+                state.isStopwatchRunning = false;
+            } else if (recoveredTimer.type === 'pomodoro') {
+                state.pomodoroStartTime = recoveredTimer.startTime;
+                state.pomodoroOriginalDuration = recoveredTimer.originalDuration;
+                state.pomodoroState = recoveredTimer.pomodoroState;
+                state.pomodoroPausedTime = recoveredTimer.pausedRemainingSeconds;
+                state.isPomodoroPaused = true;
+                // UI needs secondsLeft to display correct time
+                state.pomodoroSecondsLeft = recoveredTimer.pausedRemainingSeconds;
+            } else if (recoveredTimer.type === 'countdown') {
+                state.countdownStartTime = recoveredTimer.startTime;
+                state.countdownOriginalDuration = recoveredTimer.originalDuration;
+                state.countdownPausedTime = recoveredTimer.pausedRemainingSeconds;
+                state.isCountdownPaused = true;
+                state.isCountdownRunning = false;
+                state.countdownSecondsLeft = recoveredTimer.pausedRemainingSeconds;
+            }
+        } else {
+            // Timer was RUNNING. Calculate if it finished while we were gone.
+            
+            if (recoveredTimer.type === 'stopwatch') {
+                // Stopwatch never "finishes" on its own. It keeps running.
+                state.stopwatchStartTime = recoveredTimer.startTime;
+                state.isStopwatchRunning = true;
+                // stopwatchSeconds will be calculated in timers.js startTimer loop
+            } 
+            else if (recoveredTimer.type === 'pomodoro') {
+                const elapsedSinceStart = Math.floor((now - recoveredTimer.startTime) / 1000);
+                const duration = recoveredTimer.originalDuration;
+                
+                if (elapsedSinceStart >= duration) {
+                    // It finished while closed
+                    if (recoveredTimer.pomodoroState === 'studying') {
+                        state.allSessions.push({ 
+                            id: generateUUID(),
+                            type:'session',
+                            course: recoveredTimer.context.course,
+                            duration: formatTime(duration),
+                            seconds: duration,
+                            notes: `${recoveredTimer.context.notes || ''}`.trim(), 
+                            timestamp: new Date(recoveredTimer.startTime).toISOString()
+                        });
+                        saveData();
+                    }
+                    localStorage.removeItem('activeTimer');
+                    return; // Done
+                } else {
+                    // Still running
+                    state.pomodoroStartTime = recoveredTimer.startTime;
+                    state.pomodoroOriginalDuration = recoveredTimer.originalDuration;
+                    state.pomodoroState = recoveredTimer.pomodoroState;
+                    state.isPomodoroPaused = false;
+                    // Will be updated by interval
+                }
+            } 
+            else if (recoveredTimer.type === 'countdown') {
+                const elapsedSinceStart = Math.floor((now - recoveredTimer.startTime) / 1000);
+                const duration = recoveredTimer.originalDuration;
+
+                if (elapsedSinceStart >= duration) {
+                    // Finished
+                     state.allSessions.push({ 
+                        id: generateUUID(),
+                        type:'session',
+                        course: recoveredTimer.context.course,
+                        duration: formatTime(duration),
+                        seconds: duration,
+                        notes: `${recoveredTimer.context.notes || ''}`.trim(), 
+                        timestamp: new Date(recoveredTimer.startTime).toISOString()
+                    });
+                    saveData();
+                    localStorage.removeItem('activeTimer');
+                    return;
+                } else {
+                    // Still running
+                    state.countdownStartTime = recoveredTimer.startTime;
+                    state.countdownOriginalDuration = recoveredTimer.originalDuration;
+                    state.isCountdownRunning = true;
+                }
+            }
+        }
+
+        // Restore Input Context
+        if (recoveredTimer.context) {
+            if (recoveredTimer.type === 'stopwatch') {
+                refs.courseSelect.value = recoveredTimer.context.course;
+                refs.sessionNotes.value = recoveredTimer.context.notes;
+            } else if (recoveredTimer.type === 'pomodoro') {
+                refs.pomodoroCourseSelect.value = recoveredTimer.context.course;
+                refs.pomodoroNotes.value = recoveredTimer.context.notes;
+            } else if (recoveredTimer.type === 'countdown') {
+                refs.countdownCourseSelect.value = recoveredTimer.context.course;
+                refs.countdownNotes.value = recoveredTimer.context.notes;
+            }
+        }
+
+    } catch (err) {
+        console.error("Error restoring timer:", err);
+        localStorage.removeItem('activeTimer');
+    }
+}
+
+export function checkForRecoveredSession() {
+    restoreActiveTimer();
 }
 
 // -------------------------------------------------------------------------
@@ -347,58 +491,18 @@ export function importData(file) {
     reader.readAsText(file);
 }
 
-export function checkForRecoveredSession() {
-    const recoveredTimer = JSON.parse(localStorage.getItem('activeTimer'));
-    if (!recoveredTimer || !recoveredTimer.startTime) {
-        localStorage.removeItem('activeTimer');
-        return;
-    }
-    let elapsedSeconds = 0;
-    let course = '', notes = '', timestamp = '';
+export async function deleteItem(idOrTimestamp) { 
+    // Delete by ID first, fallback to timestamp
+    state.allSessions = state.allSessions.filter(i => (i.id !== idOrTimestamp && i.timestamp !== idOrTimestamp)); 
+    state.allScores = state.allScores.filter(i => (i.id !== idOrTimestamp && i.timestamp !== idOrTimestamp)); 
+    state.allEvents = state.allEvents.filter(i => (i.id !== idOrTimestamp && i.timestamp !== idOrTimestamp)); 
     
-    try {
-        course = recoveredTimer.context.course;
-        notes = recoveredTimer.context.notes;
-        timestamp = new Date(recoveredTimer.startTime).toISOString();
-
-        if (recoveredTimer.type === 'stopwatch') elapsedSeconds = recoveredTimer.pausedSeconds;
-        else if (recoveredTimer.type === 'pomodoro' && recoveredTimer.pomodoroState === 'studying') elapsedSeconds = recoveredTimer.originalDuration - recoveredTimer.pausedRemainingSeconds;
-        else if (recoveredTimer.type === 'countdown') elapsedSeconds = recoveredTimer.originalDuration - recoveredTimer.pausedRemainingSeconds;
-
-        if (elapsedSeconds >= 1) { 
-            state.allSessions.push({ 
-                type:'session',
-                course: course,
-                duration: formatTime(elapsedSeconds),
-                seconds: elapsedSeconds,
-                notes: `${notes || ''}`.trim(), 
-                timestamp: timestamp
-            });
-            saveData(); 
-        }
-
-    } catch (err) {
-        console.error(err);
-    }
-    localStorage.removeItem('activeTimer'); 
-}
-
-// -------------------------------------------------------------------------
-// FIX: Delete Item with Force Push
-// -------------------------------------------------------------------------
-export async function deleteItem(timestamp) { 
-    // 1. Remove from local state
-    state.allSessions = state.allSessions.filter(i => i.timestamp !== timestamp); 
-    state.allScores = state.allScores.filter(i => i.timestamp !== timestamp); 
-    state.allEvents = state.allEvents.filter(i => i.timestamp !== timestamp); 
-    
-    // 2. FORCE PUSH to cloud (True = overwrite cloud with local, do not merge)
-    // This prevents the "Zombie" item from coming back
     await saveData(true); 
 }
 
 export function logSession(course, seconds, notes, startTimeStamp) { 
     state.allSessions.push({ 
+        id: generateUUID(),
         type:'session',
         course: course,
         duration: formatTime(seconds),
@@ -417,7 +521,14 @@ export function logScore() {
         return false;
     }
     refs.scoreError.textContent = ''; 
-    state.allScores.push({type:'score',course: refs.scoreCourseSelect.value,score:s,notes: refs.scoreNotes.value.trim(),timestamp:new Date().toISOString()}); 
+    state.allScores.push({
+        id: generateUUID(),
+        type:'score',
+        course: refs.scoreCourseSelect.value,
+        score:s,
+        notes: refs.scoreNotes.value.trim(),
+        timestamp:new Date().toISOString()
+    }); 
     saveData(); 
     refs.scoreInput.value='';
     refs.scoreNotes.value='';

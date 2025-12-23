@@ -1,4 +1,4 @@
-import { getLocalISODateString, injectJalaaliDate } from './utils.js';
+import { getLocalISODateString, injectJalaaliDate, generateUUID } from './utils.js';
 import { saveAudioFile, getAudioFile } from './database.js';
 
 let state, refs, dataManager, updateAllDisplays;
@@ -17,14 +17,173 @@ export function init(appState, uiRefs, dataMgr, updateFn, timeChartFn, scoreChar
     getTrendChartOptions = trendChartFn;
 }
 
-export function showEventModal(date, timestamp = null) { refs.eventError.textContent = ''; if (timestamp) { const event = state.allEvents.find(e => e.timestamp === timestamp); if (!event) return; refs.modalTitle.textContent = 'Edit Deadline'; refs.eventText.value = event.title; refs.eventTimestamp.value = event.timestamp; if(refs.eventPriority) { refs.eventPriority.value = event.priority || 'low'; } state.eventModalPicker.setDate(event.date); } else { refs.modalTitle.textContent = `Add Deadline`; refs.eventText.value = ''; refs.eventTimestamp.value = ''; if(refs.eventPriority) refs.eventPriority.value = 'low'; state.eventModalPicker.setDate(date || new Date()); } if(refs.eventModal) refs.eventModal.style.display = 'flex'; refs.eventText.focus(); }
+export function showEventModal(date, timestamp = null) { 
+    refs.eventError.textContent = ''; 
+    if (timestamp) { 
+        const event = state.allEvents.find(e => e.timestamp === timestamp); 
+        if (!event) return; 
+        refs.modalTitle.textContent = 'Edit Deadline'; 
+        refs.eventText.value = event.title; 
+        refs.eventTimestamp.value = event.timestamp; 
+        if(refs.eventPriority) { refs.eventPriority.value = event.priority || 'low'; } 
+        state.eventModalPicker.setDate(event.date); 
+    } else { 
+        refs.modalTitle.textContent = `Add Deadline`; 
+        refs.eventText.value = ''; 
+        refs.eventTimestamp.value = ''; 
+        if(refs.eventPriority) refs.eventPriority.value = 'low'; 
+        state.eventModalPicker.setDate(date || new Date()); 
+    } 
+    if(refs.eventModal) refs.eventModal.style.display = 'flex'; 
+    refs.eventText.focus(); 
+}
 export function hideEventModal() { refs.eventModal.style.display = 'none'; }
-export function saveEvent() { const title = refs.eventText.value.trim(); const date = refs.eventDatePicker.value; const ts = refs.eventTimestamp.value; const priority = refs.eventPriority.value; if (!title) { refs.eventError.textContent = 'Event title cannot be empty.'; return; } if (!date) { refs.eventError.textContent = 'Please select a due date.'; return; } if (ts) { const eventIndex = state.allEvents.findIndex(e => e.timestamp === ts); if (eventIndex > -1) { state.allEvents[eventIndex].title = title; state.allEvents[eventIndex].date = date; state.allEvents[eventIndex].priority = priority; } } else { state.allEvents.push({ type: 'event', title: title, date: date, priority: priority, timestamp: new Date().toISOString(), isDone: false }); } dataManager.saveData(); state.isSavingEvent = true; hideEventModal(); if (state.calendar) state.calendar.setDate([], false); updateAllDisplays(); }
-export function showConfirmModal(identifier, isTask = false, itemType = 'log') { refs.itemToProcess.value = identifier; refs.itemToProcess.dataset.itemType = itemType; refs.confirmDeleteButton.style.backgroundColor = 'var(--red)'; refs.confirmDeleteButton.textContent = 'Delete'; if (itemType === 'course') { refs.modalConfirmTitle.textContent = 'Delete Course?'; refs.modalConfirmText.textContent = `Are you sure you want to delete the course "${identifier}"? This will not affect existing log entries.`; } else if (itemType === 'task_permanent') { refs.modalConfirmTitle.textContent = 'Delete Task Permanently?'; refs.modalConfirmText.textContent = 'This will remove the task from history. Use "Done" if you just finished it.'; } else { refs.modalConfirmTitle.textContent = 'Are you sure?'; refs.modalConfirmText.textContent = 'Are you sure you want to delete this item? This action cannot be undone.'; } refs.confirmModal.style.display = 'flex'; }
+
+export function saveEvent() { 
+    const title = refs.eventText.value.trim(); 
+    const date = refs.eventDatePicker.value; 
+    const ts = refs.eventTimestamp.value; 
+    const priority = refs.eventPriority.value; 
+    
+    if (!title) { refs.eventError.textContent = 'Event title cannot be empty.'; return; } 
+    if (!date) { refs.eventError.textContent = 'Please select a due date.'; return; } 
+    
+    if (ts) { 
+        const eventIndex = state.allEvents.findIndex(e => e.timestamp === ts); 
+        if (eventIndex > -1) { 
+            state.allEvents[eventIndex].title = title; 
+            state.allEvents[eventIndex].date = date; 
+            state.allEvents[eventIndex].priority = priority; 
+            if(!state.allEvents[eventIndex].id) state.allEvents[eventIndex].id = generateUUID();
+        } 
+    } else { 
+        state.allEvents.push({ 
+            id: generateUUID(),
+            type: 'event', 
+            title: title, 
+            date: date, 
+            priority: priority, 
+            timestamp: new Date().toISOString(), 
+            isDone: false 
+        }); 
+    } 
+    
+    dataManager.saveData(); 
+    state.isSavingEvent = true; 
+    hideEventModal(); 
+    if (state.calendar) state.calendar.setDate([], false); 
+    updateAllDisplays(); 
+}
+
+export function showConfirmModal(identifier, isTask = false, itemType = 'log') { 
+    refs.itemToProcess.value = identifier; 
+    refs.itemToProcess.dataset.itemType = itemType; 
+    refs.confirmDeleteButton.style.backgroundColor = 'var(--red)'; 
+    refs.confirmDeleteButton.textContent = 'Delete'; 
+    
+    if (itemType === 'course') { 
+        refs.modalConfirmTitle.textContent = 'Delete Course?'; 
+        refs.modalConfirmText.textContent = `Are you sure you want to delete the course "${identifier}"? This will not affect existing log entries.`; 
+    } else if (itemType === 'task_permanent') { 
+        refs.modalConfirmTitle.textContent = 'Delete Task Permanently?'; 
+        refs.modalConfirmText.textContent = 'This will remove the task from history. Use "Done" if you just finished it.'; 
+    } else { 
+        refs.modalConfirmTitle.textContent = 'Are you sure?'; 
+        refs.modalConfirmText.textContent = 'Are you sure you want to delete this item? This action cannot be undone.'; 
+    } 
+    refs.confirmModal.style.display = 'flex'; 
+}
 export function hideConfirmModal() { refs.itemToProcess.value = ''; refs.confirmModal.style.display = 'none'; }
-export function showEditModal(timestamp) { let item = state.allSessions.find(s => s.timestamp === timestamp); let itemType = 'session'; if (!item) { item = state.allScores.find(s => s.timestamp === timestamp); itemType = 'score'; } if (!item) return; refs.editTimestamp.value = timestamp; refs.editCourseSelect.value = item.course; refs.editNotes.value = item.notes || ''; refs.editError.textContent = ''; if (!editDatePickerInstance) { editDatePickerInstance = window.flatpickr(refs.editDatePicker, { dateFormat: "Y-m-d", defaultDate: new Date(timestamp), locale: 'fa', onDayCreate: (dObj, dStr, fp, dayElem) => { injectJalaaliDate(dayElem); } }); } else { editDatePickerInstance.setDate(new Date(timestamp)); } if (itemType === 'session') { refs.editSessionGroup.style.display = 'block'; refs.editDuration.value = item.duration; refs.editScoreGroup.style.display = 'none'; } else { refs.editSessionGroup.style.display = 'none'; refs.editScoreGroup.style.display = 'block'; refs.editScore.value = item.score; } refs.editModal.style.display = 'flex'; }
+
+export function showEditModal(timestamp) { 
+    // Find by timestamp (legacy view uses timestamp as key in buttons)
+    let item = state.allSessions.find(s => s.timestamp === timestamp); 
+    let itemType = 'session'; 
+    if (!item) { 
+        item = state.allScores.find(s => s.timestamp === timestamp); 
+        itemType = 'score'; 
+    } 
+    if (!item) return; 
+    
+    refs.editTimestamp.value = timestamp; // Keep this to find the item again
+    refs.editCourseSelect.value = item.course; 
+    refs.editNotes.value = item.notes || ''; 
+    refs.editError.textContent = ''; 
+    
+    if (!editDatePickerInstance) { 
+        editDatePickerInstance = window.flatpickr(refs.editDatePicker, { 
+            dateFormat: "Y-m-d", 
+            defaultDate: new Date(timestamp), 
+            locale: 'fa', 
+            onDayCreate: (dObj, dStr, fp, dayElem) => { injectJalaaliDate(dayElem); } 
+        }); 
+    } else { 
+        editDatePickerInstance.setDate(new Date(timestamp)); 
+    } 
+    
+    if (itemType === 'session') { 
+        refs.editSessionGroup.style.display = 'block'; 
+        refs.editDuration.value = item.duration; 
+        refs.editScoreGroup.style.display = 'none'; 
+    } else { 
+        refs.editSessionGroup.style.display = 'none'; 
+        refs.editScoreGroup.style.display = 'block'; 
+        refs.editScore.value = item.score; 
+    } 
+    refs.editModal.style.display = 'flex'; 
+}
 export function hideEditModal() { refs.editModal.style.display = 'none'; }
-export function saveEdit() { const ts = refs.editTimestamp.value; const newCourse = refs.editCourseSelect.value; const newNotes = refs.editNotes.value.trim(); const newDateStr = refs.editDatePicker.value; let sessionItem = state.allSessions.find(s => s.timestamp === ts); let scoreItem = state.allScores.find(s => s.timestamp === ts); let activeItem = sessionItem || scoreItem; if (activeItem) { if (newDateStr) { const originalDateObj = new Date(ts); const newDateObj = new Date(newDateStr); newDateObj.setHours(originalDateObj.getHours(), originalDateObj.getMinutes(), originalDateObj.getSeconds()); activeItem.timestamp = newDateObj.toISOString(); } activeItem.course = newCourse; activeItem.notes = newNotes; if (sessionItem) { const newDuration = refs.editDuration.value; if (!/^\d{2}:\d{2}:\d{2}$/.test(newDuration)) { refs.editError.textContent = "Duration must be in HH:MM:SS format."; return; } const parts = newDuration.split(':').map(Number); activeItem.seconds = (parts[0] * 3600) + (parts[1] * 60) + parts[2]; activeItem.duration = newDuration; } else if (scoreItem) { const newScore = parseInt(refs.editScore.value, 10); if(isNaN(newScore) || newScore < 0 || newScore > 100){ refs.editError.textContent = 'Score must be a number from 0-100.'; return; } activeItem.score = newScore; } dataManager.saveData(); updateAllDisplays(); hideEditModal(); } }
+
+export function saveEdit() { 
+    const ts = refs.editTimestamp.value; 
+    const newCourse = refs.editCourseSelect.value; 
+    const newNotes = refs.editNotes.value.trim(); 
+    const newDateStr = refs.editDatePicker.value; 
+    
+    // Find item
+    let sessionItem = state.allSessions.find(s => s.timestamp === ts); 
+    let scoreItem = state.allScores.find(s => s.timestamp === ts); 
+    let activeItem = sessionItem || scoreItem; 
+    
+    if (activeItem) { 
+        // Ensure it has an ID
+        if(!activeItem.id) activeItem.id = generateUUID();
+
+        // Update Timestamp if Date changed
+        if (newDateStr) { 
+            const originalDateObj = new Date(ts); 
+            const newDateObj = new Date(newDateStr); 
+            newDateObj.setHours(originalDateObj.getHours(), originalDateObj.getMinutes(), originalDateObj.getSeconds()); 
+            activeItem.timestamp = newDateObj.toISOString(); 
+        } 
+        
+        activeItem.course = newCourse; 
+        activeItem.notes = newNotes; 
+        
+        if (sessionItem) { 
+            const newDuration = refs.editDuration.value; 
+            if (!/^\d{2}:\d{2}:\d{2}$/.test(newDuration)) { 
+                refs.editError.textContent = "Duration must be in HH:MM:SS format."; 
+                return; 
+            } 
+            const parts = newDuration.split(':').map(Number); 
+            activeItem.seconds = (parts[0] * 3600) + (parts[1] * 60) + parts[2]; 
+            activeItem.duration = newDuration; 
+        } else if (scoreItem) { 
+            const newScore = parseInt(refs.editScore.value, 10); 
+            if(isNaN(newScore) || newScore < 0 || newScore > 100){ 
+                refs.editError.textContent = 'Score must be a number from 0-100.'; 
+                return; 
+            } 
+            activeItem.score = newScore; 
+        } 
+        
+        dataManager.saveData(); 
+        updateAllDisplays(); 
+        hideEditModal(); 
+    } 
+}
+
 export function showPomodoroPrompt(phaseName, nextDuration) { refs.pomodoroPromptTitle.textContent = "Phase Complete!"; if (phaseName === 'studying') { refs.pomodoroPromptText.textContent = "Break is over. Ready to focus?"; refs.pomodoroPromptConfirmBtn.textContent = `Start Focus (${state.pomodoroFocusDuration}m)`; } else { refs.pomodoroPromptText.textContent = "Great job! Time for a break?"; const breakType = phaseName === 'shortBreak' ? 'Short' : 'Long'; const breakMins = phaseName === 'shortBreak' ? (state.pomodoroShortBreakDuration || 10) : (state.pomodoroLongBreakDuration || 20); refs.pomodoroPromptConfirmBtn.textContent = `Start ${breakType} Break (${breakMins}m)`; } refs.pomodoroPromptModal.style.display = 'flex'; }
 export function hidePomodoroPrompt() { refs.pomodoroPromptModal.style.display = 'none'; }
 export function showCoursesModal() { refs.coursesModal.style.display = 'flex'; refs.newCourseName.focus(); }
@@ -92,7 +251,6 @@ export function selectAlarmFile() {
         try {
             await saveAudioFile(file);
             refs.selectedAlarmFile.textContent = file.name;
-            // REMOVED: testAlarm(); 
         } catch (err) {
             console.error("Failed to save audio:", err);
             alert("Could not save audio file. Using default.");

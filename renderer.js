@@ -23,18 +23,13 @@ function initializeApp() {
     try {
         console.log("Initializing MedChronos PWA...");
 
-        // FIX: Initialize Google API Clients immediately
-        // We use a slight delay to ensure the async scripts in index.html have loaded
-       setTimeout(() => {
-    initGoogleClients();
-    
-        // Auto-Restore: If user was logged in, just nudge the connection
-        if (localStorage.getItem('google_auth_active') === 'true') {
-        import('./js/googleSync.js').then(module => {
-            // This attempts a silent handshake in the background
-            module.handleAuthClick().catch(e => console.log("Auto-restore silent auth failed (normal if offline)"));
-             });
-        }
+        setTimeout(() => {
+            initGoogleClients();
+            if (localStorage.getItem('google_auth_active') === 'true') {
+                import('./js/googleSync.js').then(module => {
+                    module.handleAuthClick().catch(e => console.log("Auto-restore silent auth failed"));
+                });
+            }
         }, 1000);
 
         manual.init();
@@ -54,7 +49,6 @@ function initializeApp() {
             if(timers && timers.updatePomodoroDisplay) timers.updatePomodoroDisplay();
         };
 
-        // UI Event listener for the new Cloud Button (Supabase)
         document.getElementById('cloud-auth-btn').addEventListener('click', async () => {
             const { data } = await supabase.auth.getSession();
             if (data.session) {
@@ -75,20 +69,24 @@ function initializeApp() {
         charts.init(state, refs); 
         charts.initializeCharts(); 
         charts.setPieMode(state.pieChartMode);
+        
+        // Pass dependencies to Timers
         timers.init(state, refs, dataManager.logSession, modals.playAlarm, updateAllDisplays, dataManager.saveData, dataManager.saveTimerProgress);
+        
         views.init(state, refs, modals.showEventModal, dataManager.logSession);
         modals.init(state, refs, dataManager, updateAllDisplays, charts.getTimeChartOptions, charts.getScoreChartOptions, charts.getCharts, charts.getTrendChartOptions);
-        
-        // FIX: Pass dataManager to listeners so we can save after sync
         listeners.init(state, refs, timers, modals, charts, views, dataManager, updateAllDisplays);       
-        
         tools.initToolsListeners(); 
         
-        // Load Data
+        // CRITICAL ORDER:
+        // 1. Load Data
         dataManager.loadData();
+        // 2. Recover Session State (Logic)
         dataManager.checkForRecoveredSession();
+        // 3. Restore UI based on recovered state (Visuals)
+        timers.restoreTimerState();
         
-        // Initial Auth Check (Supabase)
+        // Initial Auth Check
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session) {
                 authModal.updateAuthButtonState(true);
@@ -96,9 +94,7 @@ function initializeApp() {
             }
         });
 
-        window.addEventListener('data-updated', () => {
-            updateAllDisplays();
-        });
+        window.addEventListener('data-updated', () => { updateAllDisplays(); });
         
         views.populateCourses();
         views.initializeCalendar();

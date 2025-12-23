@@ -1,4 +1,4 @@
-import * as modals from './modals.js?v=2.2.7'; 
+import * as modals from './modals.js?v=2.2.8'; 
 
 let state, refs, logSession, playAlarm, updateAllDisplays, saveData, saveTimerProgress;
 

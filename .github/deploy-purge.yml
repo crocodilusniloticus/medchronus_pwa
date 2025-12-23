@@ -1,0 +1,29 @@
+name: ArvanCloud Rapid Deploy
+
+on:
+  push:
+    branches:
+      - main  # Or 'master', depending on your branch name
+
+jobs:
+  purge-cdn:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Optional: Add a delay if your PaaS build takes time. 
+      # If Arvan PaaS takes 2 mins to build, wait 2 mins before purging.
+      - name: Wait for PaaS Build (Safety Buffer)
+        run: sleep 240 
+
+      - name: Purge ArvanCloud Cache
+        env:
+          API_KEY: ${{ secrets.ARVAN_API_KEY }}
+          DOMAIN: ${{ secrets.DOMAIN_NAME }}
+        run: |
+          echo "Purging cache for $DOMAIN..."
+          curl -X DELETE "https://napi.arvancloud.ir/cdn/4.0/domains/$DOMAIN/cache" \
+          -H "Authorization: $API_KEY" \
+          -H "Content-Type: application/json" \
+          -d '{"purge": "all"}'

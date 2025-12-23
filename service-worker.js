@@ -1,4 +1,4 @@
-const CACHE_NAME = 'medchronos-v2.04-production'; 
+const CACHE_NAME = 'medchronos-v1.3.3-production'; 
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -53,12 +53,13 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Simple "Stale-While-Revalidate" strategy
-  // 1. Try Network
-  // 2. Fallback to Cache
   if (event.request.mode === 'navigate' || event.request.method === 'GET') {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
+      fetch(event.request).catch(() => {
+        // ADDED: { ignoreSearch: true }
+        // This tells it to treat "styles.css?v=2.04" the same as "styles.css"
+        return caches.match(event.request, { ignoreSearch: true }); 
+      })
     );
   }
 });

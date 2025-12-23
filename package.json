@@ -1,7 +1,6 @@
-
 {
   "name": "medchronos",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "A study tracker for medical exams.",
   "main": "main.js",
   "repository": {
@@ -10,6 +9,8 @@
   },
   "scripts": {
     "start": "electron .",
+    "bump": "node bump-version.js",
+    "ship": "node bump-version.js && git push origin main",
     "dist": "electron-builder",
     "publish": "electron-builder --publish always"
   },
@@ -17,9 +18,9 @@
   "license": "ISC",
   "build": {
     "appId": "com.medchronos.app",
-      "extraResources": [
-    "credentials.json"
-  ],
+    "extraResources": [
+      "credentials.json"
+    ],
     "productName": "MedChronos",
     "files": [
       "**/*",
@@ -43,7 +44,6 @@
         "github"
       ]
     },
-    
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,

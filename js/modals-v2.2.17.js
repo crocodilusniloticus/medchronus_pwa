@@ -1,5 +1,5 @@
-import { getLocalISODateString, injectJalaaliDate, generateUUID } from './utils-v2.2.16.js';
-import { saveAudioFile, getAudioFile } from './database-v2.2.16.js';
+import { getLocalISODateString, injectJalaaliDate, generateUUID } from './utils-v2.2.17.js';
+import { saveAudioFile, getAudioFile } from './database-v2.2.17.js';
 
 let state, refs, dataManager, updateAllDisplays;
 let getTimeChartOptions, getScoreChartOptions, getCharts, getTrendChartOptions; 
@@ -242,7 +242,7 @@ export function testAlarm() { playAlarm(); }
 export function selectAlarmFile() { 
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'audio/*';
+    input.accept = 'audio/mpeg, audio/mp4, audio/x-m4a, audio/wav, audio/aac, .mp3, .m4a, .wav, .aac';
     
     input.onchange = async (e) => {
         const file = e.target.files[0];

@@ -1,0 +1,22 @@
+# --- Dependencies ---
+node_modules/
+
+# --- Build Output (Executables & Installers) ---
+dist/
+out/
+build/
+
+# --- Secrets (CRITICAL: Never commit these) ---
+credentials.json
+token.json
+.env
+
+# --- Logs & Temporary Files ---
+*.log
+npm-debug.log
+repomix-output.xml
+others/
+
+# --- System Files ---
+.DS_Store
+Thumbs.db

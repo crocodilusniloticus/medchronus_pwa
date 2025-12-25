@@ -1613,3 +1613,34 @@ body.breathing-mode .breathing-card {
         border-radius: 0 !important;
     }
 }
+
+.floating-alarm-btn {
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--danger); /* Red */
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 50px;
+    font-weight: 800;
+    font-size: 1rem;
+    box-shadow: 0 4px 20px rgba(198, 40, 40, 0.5);
+    z-index: 100000; /* On top of everything */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: alarm-pulse 1.5s infinite;
+}
+
+.floating-alarm-btn.hidden {
+    display: none !important;
+}
+
+@keyframes alarm-pulse {
+    0% { transform: translateX(-50%) scale(1); box-shadow: 0 0 0 0 rgba(198, 40, 40, 0.7); }
+    70% { transform: translateX(-50%) scale(1.05); box-shadow: 0 0 0 20px rgba(198, 40, 40, 0); }
+    100% { transform: translateX(-50%) scale(1); box-shadow: 0 0 0 0 rgba(198, 40, 40, 0); }
+}

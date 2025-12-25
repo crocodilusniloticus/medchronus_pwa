@@ -2,23 +2,23 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1", user-scalable=yes, ">
+    <meta name="viewport" content="width=device-width, initial-scale=1", user-scalable="yes">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#283593">
     
     <title>MedChronos</title>
     
-    <link rel="stylesheet" href="css/flatpickr.min.css?v=2.2.17">
-    <link rel="stylesheet" href="css/airbnb.css?v=2.2.17">
-    <link rel="stylesheet" href="styles-v2.2.17.css">
+    <link rel="stylesheet" href="css/flatpickr.min.css?v=2.2.18">
+    <link rel="stylesheet" href="css/airbnb.css?v=2.2.18">
+    <link rel="stylesheet" href="styles-v2.2.18.css">
     
     <!-- Google Identity Services -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script src="https://apis.google.com/js/api.js?v=2.2.17" async defer></script>
+    <script src="https://apis.google.com/js/api.js?v=2.2.18" async defer></script>
 
     <!-- External Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js?v=2.2.17"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js?v=2.2.18"></script>
     <script src="https://unpkg.com/@popperjs/core@2"></script>
     <script src="https://unpkg.com/tippy.js@6"></script>
 
@@ -409,12 +409,15 @@
     </div>
     
     <audio id="alarm-sound"></audio>
+    <button id="global-stop-alarm-btn" class="floating-alarm-btn hidden" onclick="document.dispatchEvent(new CustomEvent('stop-alarm'))">
+    🔕 Stop Alarm
+    </button>
     
-    <script type="module" src="./renderer-v2.2.17.js"></script>
+    <script type="module" src="./renderer-v2.2.18.js"></script>
     <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./service-worker.js?v=2.2.17')
+            navigator.serviceWorker.register('./service-worker.js?v=2.2.18')
                 .then((registration) => {
                     console.log('✅ ServiceWorker registration successful with scope: ', registration.scope);
                 })

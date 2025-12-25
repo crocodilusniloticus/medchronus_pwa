@@ -1,4 +1,4 @@
-import * as modals from './modals-v2.2.17.js'; 
+import * as modals from './modals-v2.2.18.js'; 
 
 let state, refs, logSession, playAlarm, updateAllDisplays, saveData, saveTimerProgress;
 
@@ -10,13 +10,16 @@ export function init(appState, uiRefs, logSessionFn, playAlarmFn, updateAllDispl
     updateAllDisplays = updateAllDisplaysFn;
     saveData = saveDataFn;
     saveTimerProgress = saveTimerProgressFn;
+    document.addEventListener('stop-alarm', () => {
+        if (state.countdownSecondsLeft <= 0 && state.countdownStartTime !== null) {
+            resetCountdownTimer();
+        }
+    });
     
-    // NOTE: UI restoration logic moved to restoreTimerState() 
-    // to be called explicitly after data is loaded.
 }
 
+// ... [restoreTimerState function remains unchanged from previous step] ...
 export function restoreTimerState() {
-    // 1. Restore Pomodoro UI
     if (state.pomodoroState !== 'idle') {
         refs.pomodoroStartControls.classList.add('hidden');
         refs.pomodoroRunningControls.classList.remove('hidden');
@@ -44,7 +47,6 @@ export function restoreTimerState() {
         }
     }
 
-    // 2. Restore Stopwatch UI
     if (state.isStopwatchRunning || state.isStopwatchPaused) {
         refs.stopButton.classList.remove('hidden');
         refs.resetButton.classList.remove('hidden');
@@ -55,7 +57,6 @@ export function restoreTimerState() {
 
         if (state.isStopwatchRunning && state.stopwatchStartTime) {
             clearInterval(state.stopwatchTimer);
-            // Instant update
             const now = Date.now();
             state.stopwatchSeconds = Math.floor((now - state.stopwatchStartTime) / 1000);
             refs.timerDisplay.textContent = formatTime(state.stopwatchSeconds);
@@ -70,7 +71,6 @@ export function restoreTimerState() {
         }
     }
 
-    // 3. Restore Countdown UI
     if (state.isCountdownRunning || state.isCountdownPaused) {
         refs.countdownStopBtn.classList.remove('hidden');
         refs.countdownResetBtn.classList.remove('hidden');
@@ -79,15 +79,11 @@ export function restoreTimerState() {
         refs.countdownStartPauseBtn.textContent = state.isCountdownPaused ? "Resume" : "Pause";
 
         if (state.isCountdownRunning) {
-             // CRITICAL FIX: Do NOT call startCountdownTimer() here.
-             // startCountdownTimer() has a toggle check: if(running) -> Pause.
-             // We must manually start the interval loop to resume without toggling.
              clearInterval(state.countdownTimer);
              
              const startTime = state.countdownStartTime;
              const originalDur = state.countdownOriginalDuration;
 
-             // Instant Update
              const elapsed = Math.floor((Date.now() - startTime) / 1000);
              state.countdownSecondsLeft = originalDur - elapsed;
              if(state.countdownSecondsLeft < 0) state.countdownSecondsLeft = 0;
@@ -107,7 +103,6 @@ export function restoreTimerState() {
                     logSession(refs.countdownCourseSelect.value, state.countdownOriginalDuration, refs.countdownNotes.value.trim(), new Date(state.countdownStartTime).toISOString());
                     updateAllDisplays(); 
                     refs.countdownNotes.value = '';
-                    setTimeout(() => { playAlarm(true); resetCountdownTimer(); }, 10000);
                 }
             }, 1000);
 
@@ -138,19 +133,16 @@ function stopAndLogRunningTimers(excludeTimerType) {
     if (excludeTimerType !== 'countdown' && (state.isCountdownRunning || state.isCountdownPaused)) stopCountdownTimer();
 }
 
-// -------------------------------------------------------------------------
-// STOPWATCH
-// -------------------------------------------------------------------------
+// ... [stopwatch functions startTimer, pauseTimer, stopTimer, resetStopwatch remain unchanged] ...
 export function startTimer() { 
     stopAndLogRunningTimers('stopwatch');
-    
-    // CASE 1: Pause Request
+    modals.primeAudioEngine(); // Unlock Audio for Stopwatch
+
     if (state.isStopwatchRunning) {
         pauseTimer();
         return;
     } 
     
-    // CASE 2: Resume or Start
     state.isStopwatchRunning = true; 
     state.isStopwatchPaused = false;
     refs.startButton.textContent = "Pause";
@@ -161,16 +153,11 @@ export function startTimer() {
     refs.resetButton.disabled = false; 
     refs.courseSelect.disabled = true; 
 
-    // Time Calculation Logic
     if (state.stopwatchStartTime === null) { 
-        // Fresh Start
         state.stopwatchStartTime = Date.now(); 
         state.stopwatchSeconds = 0; 
     } 
-    // If it was restored from dataManager, stopwatchStartTime is already set correctly.
-    // If it was paused, we need to adjust start time to account for the pause duration.
     else if (state.isStopwatchPaused === false && state.stopwatchSeconds > 0) {
-        // Recovering from a Pause state
          state.stopwatchStartTime = Date.now() - (state.stopwatchSeconds * 1000); 
     }
     
@@ -226,18 +213,20 @@ export function resetStopwatch() {
     localStorage.removeItem('activeTimer');
 }
 
-// -------------------------------------------------------------------------
-// POMODORO
-// -------------------------------------------------------------------------
+// --- POMODORO (UPDATED) ---
 export function beginNewPomodoroPhase(durationInSeconds, stateName) {
     stopAndLogRunningTimers('pomodoro');
+    
+    // FIX: Start "Heartbeat" for iOS background persistence
+    modals.primeAudioEngine(); 
+
     state.pomodoroOriginalDuration = durationInSeconds;
     if (stateName === 'studying') {
         state.pomodoroStartTime = Date.now();
         refs.pomodoroStatus.textContent = "PHASE: FOCUS";
         refs.pomodoroStatus.classList.remove('break-mode');
     } else {
-        state.pomodoroStartTime = Date.now(); // Start break time now
+        state.pomodoroStartTime = Date.now(); 
         refs.pomodoroStatus.textContent = "PHASE: BREAK";
         refs.pomodoroStatus.classList.add('break-mode');
     }
@@ -256,6 +245,9 @@ export function beginNewPomodoroPhase(durationInSeconds, stateName) {
 
 function handlePomodoroCompletion(isSkipped = false) {
     clearInterval(state.pomodoroTimer);
+    
+    // FIX: Play alarm loop (unless skipped by button)
+    // The alarm will continue ringing until user clicks a button in the Prompt Modal
     if(!isSkipped) playAlarm(); 
 
     if (state.pomodoroState === 'studying') {
@@ -269,16 +261,27 @@ function handlePomodoroCompletion(isSkipped = false) {
         let nextBreakDuration, nextBreakName;
         if (state.pomodoroCycle >= 4) { nextBreakDuration = state.pomodoroLongBreakDuration * 60; nextBreakName = 'longBreak'; } 
         else { nextBreakDuration = state.pomodoroShortBreakDuration * 60; nextBreakName = 'shortBreak'; }
-        beginNewPomodoroPhase(nextBreakDuration, nextBreakName);
+        
+        // Auto-transition logic is removed in favor of Prompt
+        // But here we immediately start next phase? 
+        // Wait, MedChronos usually prompts between phases. 
+        // To keep it simple: Show prompt for break.
+        
+        state.nextPomodoroPhase = { duration: nextBreakDuration, name: nextBreakName };
+        modals.showPomodoroPrompt(nextBreakName, nextBreakDuration);
+        
     } else {
-        if(!isSkipped) setTimeout(() => playAlarm(true), 15000); 
+        // Break finished
+        // FIX: Removed the 15-second auto-stop timeout.
+        // It will ring until user acts.
         state.nextPomodoroPhase = { duration: state.pomodoroFocusDuration * 60, name: 'studying' };
         modals.showPomodoroPrompt('studying', state.pomodoroFocusDuration * 60);
-        state.pomodoroState = 'idle';
-        refs.pomodoroStatus.textContent = "COMPLETED";
-        updateTimerTabIndicators();
-        localStorage.removeItem('activeTimer');
     }
+    
+    state.pomodoroState = 'idle';
+    refs.pomodoroStatus.textContent = "COMPLETED";
+    updateTimerTabIndicators();
+    localStorage.removeItem('activeTimer');
 }
 
 export function skipPomodoroPhase() { handlePomodoroCompletion(true); }
@@ -287,15 +290,10 @@ export function startPomodoroCountdown(durationInSeconds, stateName) {
     clearInterval(state.pomodoroTimer); 
     state.pomodoroState = stateName;
     
-    // We don't overwrite secondsLeft if we are just restarting the interval logic
-    // unless it's a fresh phase start
     if (state.isPomodoroPaused === false) {
         refs.pomodoroPauseResumeBtn.textContent = "Pause";
     }
 
-    // Determine the baseline time to subtract from
-    // If recovering: startTime is already set in past.
-    // If fresh: startTime was set in beginNewPomodoroPhase.
     const startTime = state.pomodoroStartTime; 
 
     state.pomodoroTimer = setInterval(() => {
@@ -315,19 +313,12 @@ export function startPomodoroCountdown(durationInSeconds, stateName) {
 
 export function togglePomodoroPause() {
     if (state.isPomodoroPaused) {
-        // RESUME
         state.isPomodoroPaused = false; 
         refs.pomodoroPauseResumeBtn.textContent = "Pause";
-        // To resume using the "elapsed from start" logic, we must shift the startTime forward
-        // by the amount of time we were paused.
-        const pausedDuration = (state.pomodoroSecondsLeft - state.pomodoroPausedTime); // Delta check if needed
-        // Simpler: New Start Time = Now - (Duration - Remaining)
         const elapsedBeforePause = state.pomodoroOriginalDuration - state.pomodoroPausedTime;
         state.pomodoroStartTime = Date.now() - (elapsedBeforePause * 1000);
-        
         startPomodoroCountdown(state.pomodoroOriginalDuration, state.pomodoroState);
     } else {
-        // PAUSE
         state.isPomodoroPaused = true; 
         clearInterval(state.pomodoroTimer);
         state.pomodoroPausedTime = state.pomodoroSecondsLeft; 
@@ -368,11 +359,12 @@ export function resetPomodoro() {
     localStorage.removeItem('activeTimer');
 }
 
-// -------------------------------------------------------------------------
-// COUNTDOWN
-// -------------------------------------------------------------------------
+// --- COUNTDOWN (UPDATED) ---
 export function startCountdownTimer(durationInSeconds) {
     stopAndLogRunningTimers('countdown');
+    
+    // FIX: Start Heartbeat immediately
+    modals.primeAudioEngine(); 
     
     if (durationInSeconds === undefined) {
         if (state.isCountdownPaused) {
@@ -395,7 +387,6 @@ export function startCountdownTimer(durationInSeconds) {
         state.isCountdownRunning = true; 
         state.isCountdownPaused = false;
         refs.countdownStartPauseBtn.textContent = "Pause";
-        // Shift start time to account for pause
         const elapsedBeforePause = state.countdownOriginalDuration - state.countdownPausedTime;
         state.countdownStartTime = Date.now() - (elapsedBeforePause * 1000);
     } else {
@@ -423,7 +414,6 @@ export function startCountdownTimer(durationInSeconds) {
 
     clearInterval(state.countdownTimer); 
     
-    // Interval based on StartTime to prevent drift/reload issues
     const startTime = state.countdownStartTime;
     const originalDur = state.countdownOriginalDuration;
 
@@ -437,11 +427,15 @@ export function startCountdownTimer(durationInSeconds) {
 
         if (state.countdownSecondsLeft <= 0) {
             clearInterval(state.countdownTimer); 
+            
+            // FIX: Loop alarm until stop
             playAlarm();
+            
             logSession(refs.countdownCourseSelect.value, state.countdownOriginalDuration, refs.countdownNotes.value.trim(), new Date(state.countdownStartTime).toISOString());
             updateAllDisplays(); 
             refs.countdownNotes.value = '';
-            setTimeout(() => { playAlarm(true); resetCountdownTimer(); }, 10000);
+
+            // Timer stays at 00:00:00. Stop button remains visible.
         }
     }, 1000);
     
@@ -461,11 +455,12 @@ export function pauseCountdownTimer() {
 
 export function stopCountdownTimer() {
     clearInterval(state.countdownTimer); 
-    playAlarm(true); 
+    playAlarm(true); // Stop alarm
     const elapsedSeconds = state.countdownOriginalDuration - state.countdownSecondsLeft;
-    if (elapsedSeconds >= 2) {
+    if (elapsedSeconds >= 2 && state.countdownSecondsLeft > 0) {
         logSession(refs.countdownCourseSelect.value, elapsedSeconds, refs.countdownNotes.value.trim(), new Date(state.countdownStartTime).toISOString());
-        updateAllDisplays(); refs.countdownNotes.value = '';
+        updateAllDisplays(); 
+        refs.countdownNotes.value = '';
     }
     resetCountdownTimer(); 
     saveData(); 

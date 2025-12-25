@@ -1,9 +1,75 @@
-import { getLocalISODateString, injectJalaaliDate, generateUUID } from './utils-v2.2.17.js';
-import { saveAudioFile, getAudioFile } from './database-v2.2.17.js';
+import { getLocalISODateString, injectJalaaliDate, generateUUID } from './utils-v2.2.18.js';
+import { saveAudioFile, getAudioFile } from './database-v2.2.18.js';
 
 let state, refs, dataManager, updateAllDisplays;
 let getTimeChartOptions, getScoreChartOptions, getCharts, getTrendChartOptions; 
 let editDatePickerInstance = null; 
+
+// --- AUDIO ENGINE VARIABLES ---
+let beepCtx = null;
+let backgroundCtx = null; // The "Keep Alive" context
+let beepInterval = null;  // For looping the fallback beep
+
+// A tiny silence snippet (MP3) to ensure the Audio Element is valid during Prime
+const SILENT_MP3 = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//OEAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMD//////////////////////////////////////////////////////////////////wAAAP//OEAAAAAAAAAAAAAAAAAAAAAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAAAAAAAAAAAAACCAAAAAAAAABExAAAAMZAAAAAAAAAAAA//OEZAAABIAAAAkAAACAAAAAAAAAAAAAAP/zgEAAACAAAAAAAAAAAAAA//OEQAAACAAAAAAAAAAAAAA//OIQAAACAAAAAAAAAAAAAA==";
+
+export function primeAudioEngine() {
+    // 1. Prime the HTML Audio Element
+    if (refs.alarmSound) {
+        // FIX: If no source exists, inject silence so .play() actually works and unlocks the channel
+        if (!refs.alarmSound.src || refs.alarmSound.src === window.location.href) {
+            refs.alarmSound.src = SILENT_MP3;
+        }
+        
+        refs.alarmSound.volume = 0.01; // Non-zero for iOS sometimes helps
+        
+        const playPromise = refs.alarmSound.play();
+        if (playPromise !== undefined) {
+            playPromise.then(() => {
+                // Success! The channel is unlocked.
+                // We pause it immediately.
+                refs.alarmSound.pause();
+                refs.alarmSound.currentTime = 0;
+            }).catch((e) => {
+                // console.warn("Audio Prime failed (user interaction required):", e);
+            });
+        }
+    }
+
+    // 2. Start "The Silent Heartbeat" (Low Power Mode)
+    // This keeps the CPU awake (~1% battery/hour) so the timer doesn't freeze.
+    if (!backgroundCtx) {
+        backgroundCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    
+    if (backgroundCtx.state === 'suspended') {
+        backgroundCtx.resume().then(() => {
+            // Create a generated silent tone (Low CPU usage)
+            const oscillator = backgroundCtx.createOscillator();
+            const gainNode = backgroundCtx.createGain();
+            
+            // Set volume to barely non-zero (prevents iOS from killing the thread)
+            gainNode.gain.value = 0.0001; 
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.value = 20; // 20Hz (Low rumble, inaudible)
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(backgroundCtx.destination);
+            
+            oscillator.start();
+            // We let this run forever. It acts as the "heartbeat".
+        }).catch(() => {});
+    }
+
+    // 3. Prepare the Beep Context (Fallback)
+    if (!beepCtx) {
+        beepCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (beepCtx.state === 'suspended') {
+        beepCtx.resume().catch(() => {});
+    }
+}
 
 export function init(appState, uiRefs, dataMgr, updateFn, timeChartFn, scoreChartFn, getChartsFn, trendChartFn) {
     state = appState;
@@ -15,6 +81,14 @@ export function init(appState, uiRefs, dataMgr, updateFn, timeChartFn, scoreChar
     getScoreChartOptions = scoreChartFn;
     getCharts = getChartsFn;
     getTrendChartOptions = trendChartFn;
+
+    // --- iOS UNLOCKER ---
+    // Trigger on the very first touch to unlock audio capabilities
+    document.addEventListener('touchstart', primeAudioEngine, { once: true, capture: true });
+    document.addEventListener('click', primeAudioEngine, { once: true, capture: true });
+
+    // --- STOP BUTTON LISTENER ---
+    document.addEventListener('stop-alarm', () => playAlarm(true));
 }
 
 export function showEventModal(date, timestamp = null) { 
@@ -96,7 +170,6 @@ export function showConfirmModal(identifier, isTask = false, itemType = 'log') {
 export function hideConfirmModal() { refs.itemToProcess.value = ''; refs.confirmModal.style.display = 'none'; }
 
 export function showEditModal(timestamp) { 
-    // Find by timestamp (legacy view uses timestamp as key in buttons)
     let item = state.allSessions.find(s => s.timestamp === timestamp); 
     let itemType = 'session'; 
     if (!item) { 
@@ -105,7 +178,7 @@ export function showEditModal(timestamp) {
     } 
     if (!item) return; 
     
-    refs.editTimestamp.value = timestamp; // Keep this to find the item again
+    refs.editTimestamp.value = timestamp; 
     refs.editCourseSelect.value = item.course; 
     refs.editNotes.value = item.notes || ''; 
     refs.editError.textContent = ''; 
@@ -140,23 +213,18 @@ export function saveEdit() {
     const newNotes = refs.editNotes.value.trim(); 
     const newDateStr = refs.editDatePicker.value; 
     
-    // Find item
     let sessionItem = state.allSessions.find(s => s.timestamp === ts); 
     let scoreItem = state.allScores.find(s => s.timestamp === ts); 
     let activeItem = sessionItem || scoreItem; 
     
     if (activeItem) { 
-        // Ensure it has an ID
         if(!activeItem.id) activeItem.id = generateUUID();
-
-        // Update Timestamp if Date changed
         if (newDateStr) { 
             const originalDateObj = new Date(ts); 
             const newDateObj = new Date(newDateStr); 
             newDateObj.setHours(originalDateObj.getHours(), originalDateObj.getMinutes(), originalDateObj.getSeconds()); 
             activeItem.timestamp = newDateObj.toISOString(); 
         } 
-        
         activeItem.course = newCourse; 
         activeItem.notes = newNotes; 
         
@@ -177,7 +245,6 @@ export function saveEdit() {
             } 
             activeItem.score = newScore; 
         } 
-        
         dataManager.saveData(); 
         updateAllDisplays(); 
         hideEditModal(); 
@@ -194,33 +261,62 @@ export function showSettingsModal() { if(refs.settingsModal) refs.settingsModal.
 export function hideSettingsModal() { refs.settingsModal.style.display = 'none'; }
 export function saveSettings() { const urgency = parseInt(refs.deadlineUrgencyInput.value); if(urgency && urgency > 0) state.deadlineUrgencyDays = urgency; if(refs.settingHeatmapTarget) { const val = parseFloat(refs.settingHeatmapTarget.value); if(val > 0) state.heatmapTargetHours = val; } if(refs.settingFocusDuration) { const val = parseInt(refs.settingFocusDuration.value); if(val > 0) state.pomodoroFocusDuration = val; } if(refs.settingShortBreakDuration) { const val = parseInt(refs.settingShortBreakDuration.value); if(val > 0) state.pomodoroShortBreakDuration = val; } if(refs.settingLongBreakDuration) { const val = parseInt(refs.settingLongBreakDuration.value); if(val > 0) state.pomodoroLongBreakDuration = val; } dataManager.saveData(); updateAllDisplays(); hideSettingsModal(); }
 
+// --- UPDATED PLAY ALARM ---
 export async function playAlarm(stop = false) { 
+    const stopBtn = document.getElementById('global-stop-alarm-btn');
+
     if (stop) { 
+        // STOP
         if(refs.alarmSound) {
             refs.alarmSound.pause(); 
             refs.alarmSound.currentTime = 0; 
+            refs.alarmSound.loop = false; // Stop the loop
         }
+        
+        if (beepInterval) {
+            clearInterval(beepInterval);
+            beepInterval = null;
+        }
+
+        if(stopBtn) stopBtn.classList.add('hidden'); 
         return;
     } 
+    
+    // PLAY
+    if(refs.alarmSound) refs.alarmSound.volume = 1.0; 
     
     try {
         const savedFile = await getAudioFile();
         if (savedFile && savedFile.content) {
             const url = URL.createObjectURL(savedFile.content);
             refs.alarmSound.src = url;
+            
+            // FIX: Infinite Loop for custom files
+            refs.alarmSound.loop = true; 
+            
             await refs.alarmSound.play();
+            if(stopBtn) stopBtn.classList.remove('hidden'); 
             return;
         }
+        throw new Error("No custom file");
     } catch (e) {
-        console.warn("DB Audio load failed, using fallback:", e);
+        // FIX: Infinite Loop for fallback beep
+        playFallbackBeep(); // Play once immediately
+        if (beepInterval) clearInterval(beepInterval);
+        beepInterval = setInterval(playFallbackBeep, 1000); // Repeat every second
+        
+        if(stopBtn) stopBtn.classList.remove('hidden'); 
     }
-
-    playFallbackBeep();
 }
 
 function playFallbackBeep() {
     try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (!beepCtx) {
+            beepCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (beepCtx.state === 'suspended') beepCtx.resume();
+
+        const ctx = beepCtx;
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);

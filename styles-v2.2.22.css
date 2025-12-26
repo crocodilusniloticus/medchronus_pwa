@@ -504,7 +504,7 @@ body {
     height: 38px !important; 
     width: 38px !important;
     max-width: 38px !important;
-    margin: 3px !important; 
+    margin: 2px !important; 
     
     line-height: 1 !important;
     font-weight: 600;
@@ -567,6 +567,24 @@ body {
     color: #ffffff !important;
     background: var(--card-cal-today) !important;
     border-color: var(--card-cal-today) !important;
+}
+
+.calendar-card .flatpickr-prev-month {
+    left: auto !important;
+    right: 0 !important;
+    /* This moves the "Back" arrow to the right side */
+}
+
+.calendar-card .flatpickr-next-month {
+    right: auto !important;
+    left: 0 !important;
+    /* This moves the "Next" arrow to the left side */
+}
+
+/* Optional: Flip the icons themselves if they are pointing the wrong way */
+.calendar-card .flatpickr-prev-month svg,
+.calendar-card .flatpickr-next-month svg {
+    transform: rotate(180deg);
 }
 
 /* D. FIX JALAALI VISIBILITY (White on Blue) */
@@ -1503,7 +1521,7 @@ body.breathing-mode .breathing-card {
     /* Row 1: Course Selector */
     #scoreCourseSelect {
         width: 100% !important;
-        height: 40px !important;
+        height: 50px !important;
     }
 
     /* Row 2: Score Input */

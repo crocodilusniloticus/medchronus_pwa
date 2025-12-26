@@ -1,5 +1,6 @@
-import { getLocalISODateString, injectJalaaliDate, generateUUID } from './utils-v2.2.21.js';
-import { saveAudioFile, getAudioFile } from './database-v2.2.21.js';
+import { getLocalISODateString, injectJalaaliDate, generateUUID } from './utils-v2.2.22.js';
+import { saveAudioFile, getAudioFile } from './database-v2.2.22.js';
+import { upsertEventToGoogle } from './googleSync-v2.2.22.js'; // Import the new function
 
 let state, refs, dataManager, updateAllDisplays;
 let getTimeChartOptions, getScoreChartOptions, getCharts, getTrendChartOptions; 
@@ -113,7 +114,7 @@ export function showEventModal(date, timestamp = null) {
 }
 export function hideEventModal() { refs.eventModal.style.display = 'none'; }
 
-export function saveEvent() { 
+export async function saveEvent() { 
     const title = refs.eventText.value.trim(); 
     const date = refs.eventDatePicker.value; 
     const ts = refs.eventTimestamp.value; 
@@ -122,31 +123,55 @@ export function saveEvent() {
     if (!title) { refs.eventError.textContent = 'Event title cannot be empty.'; return; } 
     if (!date) { refs.eventError.textContent = 'Please select a due date.'; return; } 
     
+    let activeEvent = null;
+
+    // 1. UPDATE LOCAL STATE (Optimistic)
     if (ts) { 
+        // Editing existing
         const eventIndex = state.allEvents.findIndex(e => e.timestamp === ts); 
         if (eventIndex > -1) { 
             state.allEvents[eventIndex].title = title; 
             state.allEvents[eventIndex].date = date; 
             state.allEvents[eventIndex].priority = priority; 
-            if(!state.allEvents[eventIndex].id) state.allEvents[eventIndex].id = generateUUID();
+            // Keep googleId if it exists
+            activeEvent = state.allEvents[eventIndex];
         } 
     } else { 
-        state.allEvents.push({ 
-            id: generateUUID(),
+        // Creating new
+        const newId = generateUUID();
+        activeEvent = { 
+            id: newId, // Temporary ID until Google assigns one (or permanent if offline)
             type: 'event', 
             title: title, 
             date: date, 
             priority: priority, 
             timestamp: new Date().toISOString(), 
-            isDone: false 
-        }); 
+            isDone: false,
+            googleId: null
+        };
+        state.allEvents.push(activeEvent); 
     } 
     
+    // 2. SAVE LOCAL & UPDATE UI
     dataManager.saveData(); 
     state.isSavingEvent = true; 
     hideEventModal(); 
     if (state.calendar) state.calendar.setDate([], false); 
     updateAllDisplays(); 
+
+    // 3. PUSH TO GOOGLE (Background)
+    if (activeEvent) {
+        const result = await upsertEventToGoogle(activeEvent);
+        if (result.success && result.googleId) {
+            // Update the local event with the confirmed Google ID
+            activeEvent.googleId = result.googleId;
+            activeEvent.id = result.googleId; // Use Google ID as main ID
+            dataManager.saveData(); // Save the ID persistence
+        } else if (result.error && result.error !== "Offline") {
+             // Optional: Toast error
+             console.warn("Google Sync Warning:", result.error);
+        }
+    }
 }
 
 export function showConfirmModal(identifier, isTask = false, itemType = 'log') { 

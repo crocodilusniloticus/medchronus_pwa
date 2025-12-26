@@ -1,5 +1,5 @@
-import { getLocalISODateString, generateUUID } from './utils-v2.2.21.js';
-import { supabase } from './supabaseClient-v2.2.21.js';
+import { getLocalISODateString, generateUUID } from './utils-v2.2.22.js';
+import { supabase } from './supabaseClient-v2.2.22.js';
 
 let state, refs;
 let isSyncing = false;
@@ -158,7 +158,7 @@ export async function syncWithSupabase(forcePush = false) {
     try {
         let merged = false;
 
-        // STEP 1: Fetch Cloud Data (ONLY if NOT force pushing)
+        // STEP 1: Fetch Cloud Data (Sessions & Scores ONLY)
         if (!forcePush) {
             const { data: cloudRow, error } = await supabase
                 .from('user_data')
@@ -173,42 +173,34 @@ export async function syncWithSupabase(forcePush = false) {
             if (cloudRow && cloudRow.content) {
                 const cloudData = cloudRow.content;
                 
-                // UUID-Based Smart Merge
-                // If ID exists, match by ID. If not, match by Timestamp (Legacy).
-                // Local edits override Cloud.
+                // Helper to merge arrays by ID
                 const mergeArrays = (localArr, cloudArr) => {
                     const map = new Map();
-                    
                     // 1. Put Cloud items in map
                     cloudArr.forEach(item => {
                         const key = item.id || item.timestamp;
                         if(key) map.set(key, item);
                     });
-
                     // 2. Overwrite with Local items
                     localArr.forEach(item => {
-                        // Ensure local item has ID
                         if(!item.id) item.id = generateUUID(); 
                         const key = item.id || item.timestamp;
                         if(key) map.set(key, item);
                     });
-                    
                     return Array.from(map.values());
                 };
 
+                // STRICTLY MERGE ONLY SESSIONS AND SCORES
+                // WE DO NOT TOUCH EVENTS HERE.
                 const mergedSessions = mergeArrays(state.allSessions, cloudData.sessions || []);
                 const mergedScores = mergeArrays(state.allScores, cloudData.scores || []);
-                const mergedEvents = mergeArrays(state.allEvents, cloudData.events || []);
                 const mergedCourses = [...new Set([...state.allCourses, ...(cloudData.courses || [])])].sort();
 
-                // Check for differences
                 if (mergedSessions.length !== state.allSessions.length || 
-                    mergedScores.length !== state.allScores.length || 
-                    mergedEvents.length !== state.allEvents.length) {
+                    mergedScores.length !== state.allScores.length) {
                     
                     state.allSessions = mergedSessions;
                     state.allScores = mergedScores;
-                    state.allEvents = mergedEvents;
                     state.allCourses = mergedCourses;
                     
                     saveData(false); 
@@ -217,11 +209,11 @@ export async function syncWithSupabase(forcePush = false) {
             }
         }
 
-        // STEP 2: Push Local Data to Cloud
+        // STEP 2: Push Local Data to Cloud (EXPLICITLY EXCLUDING EVENTS)
         const payload = {
             sessions: state.allSessions,
             scores: state.allScores,
-            events: state.allEvents,
+            // events: [], // Intentionally omitted or empty to ensure no data leaks
             courses: state.allCourses,
             preferences: {
                 streakTarget: state.streakTarget,

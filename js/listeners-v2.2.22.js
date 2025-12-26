@@ -1,9 +1,9 @@
-import { pushEventsToGoogle, handleSignoutClick, deleteSingleEvent } from './googleSync-v2.2.21.js'; 
+import { fetchGoogleEventsMaster, upsertEventToGoogle, deleteEventFromGoogle, handleSignoutClick } from './googleSync-v2.2.22.js';
 
 let refs, timers, modals, charts, views, dataManager, state, updateAllDisplays;
 let statusTimeout = null; 
 
-function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, dataMgr, updateAllDisplaysFn) {
+export function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, dataMgr, updateAllDisplaysFn) {
     state = appState;
     refs = uiRefs;
     timers = timerFuncs;
@@ -41,7 +41,7 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
         }
     });
 
-    // --- SYNC ENGINE ---
+    // --- GOOGLE MASTER SYNC ---
     const triggerCloudSync = async (silent = false) => {
         if (!refs.syncBtn) return;
         if (!navigator.onLine) {
@@ -51,53 +51,42 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
 
         try {
             if (!silent) {
-                setStatus("Syncing...");
+                setStatus("Fetching Google Calendar...");
                 refs.syncBtn.style.opacity = "0.5";
             }
             
-            if (window.ipcRenderer) {
-                const cleanEvents = JSON.parse(JSON.stringify(state.allEvents));
-                const result = await window.ipcRenderer.invoke('google-calendar-sync', cleanEvents);
-                handleSyncResult(result, silent);
+            // 1. Fetch from Google (Source of Truth for ACTIVE events)
+            const result = await fetchGoogleEventsMaster();
+            
+            if (result.success && result.events) {
+                // 2. PRESERVE LOCAL HISTORY
+                // Since "Done" events are deleted from Google, we must keep our local copy of them.
+                const localCompleted = state.allEvents.filter(e => e.isDone);
+                
+                // Avoid duplicates: If Google sends an event, use Google's version. 
+                // Only keep local completed items if they are NOT in the Google result.
+                const googleIds = new Set(result.events.map(e => e.googleId));
+                const uniqueLocalCompleted = localCompleted.filter(e => !e.googleId || !googleIds.has(e.googleId));
+
+                // 3. MERGE: Google Active + Local Completed
+                state.allEvents = [...result.events, ...uniqueLocalCompleted];
+                
+                dataManager.saveData(); 
+                updateAllDisplays();    
+                
+                if (!silent) setStatus(`Synced: ${result.events.length} Active Events`);
             } else {
-                const result = await pushEventsToGoogle(state.allEvents);
-                handleSyncResult(result, silent);
+                 if(!silent && result.error) setStatus("Google Sync Error", true);
             }
+
+            // 4. Trigger Supabase (Sessions/Scores ONLY)
+            await dataManager.syncWithSupabase();
 
         } catch (err) {
             console.warn("Auto-Sync Error:", err);
             setStatus("Sync Failed", true); 
         } finally {
             if (refs.syncBtn) refs.syncBtn.style.opacity = "1";
-        }
-    };
-
-    const handleSyncResult = (result, silent) => {
-        if (result.success && result.stats) {
-            
-            // --- TWO-WAY SYNC UPDATE ---
-            // If the sync returned a new list of events (merged from Google),
-            // we must update our local state and save it.
-            if (result.finalEvents) {
-                state.allEvents = result.finalEvents;
-                dataManager.saveData(); // Save the merged list to LocalStorage
-                updateAllDisplays();    // Refresh UI (Task list, Calendar)
-            }
-            // ---------------------------
-
-            const totalChanges = 
-                (result.stats.addedToLocal || 0) + 
-                (result.stats.deletedFromLocal || 0) + 
-                (result.stats.uploadedToGoogle || 0);
-
-            if (!silent || totalChanges > 0) {
-                let msg = "Sync Complete";
-                if(totalChanges === 0) msg = "Google Cal: Up to date";
-                else msg = `Synced: +${result.stats.addedToLocal} | -${result.stats.deletedFromLocal} | ⬆${result.stats.uploadedToGoogle}`;
-                setStatus(msg);
-            }
-        } else {
-            throw new Error(result.error || "Unknown error.");
         }
     };
 
@@ -108,52 +97,60 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
         }
     };
 
-    // --- EVENT LISTENERS ---
+    // --- BUTTON HANDLERS ---
 
     refs.saveEventButton.addEventListener('click', () => {
         modals.saveEvent();
-        restoreFocus();
-        checkAndTriggerSync(); 
     });
 
     refs.saveEditButton.addEventListener('click', () => {
         modals.saveEdit();
-        restoreFocus();
-        checkAndTriggerSync(); 
     });
 
-    refs.taskList.addEventListener('click', (event) => { 
+    refs.taskList.addEventListener('click', async (event) => { 
         const doneBtn = event.target.closest('.task-done-btn'); 
         const recoverBtn = event.target.closest('.task-recover-btn');
         const deleteBtn = event.target.closest('.task-delete-btn'); 
         const editBtn = event.target.closest('.task-edit-btn'); 
         
+        // 1. MARK DONE -> DELETE FROM GOOGLE
         if (doneBtn) { 
             const ts = doneBtn.dataset.timestamp; 
-            const eventIndex = state.allEvents.findIndex(e => e.timestamp === ts); 
-            if (eventIndex > -1) { 
-                state.allEvents[eventIndex].isDone = true; 
+            const eventItem = state.allEvents.find(e => e.timestamp === ts); 
+            if (eventItem) { 
+                eventItem.isDone = true; 
                 dataManager.saveData(); 
                 updateAllDisplays(); 
-                checkAndTriggerSync(); 
+                
+                // DELETE from Google (It is done, get it off the calendar)
+                if (eventItem.googleId) {
+                    await deleteEventFromGoogle(eventItem.googleId);
+                }
             } 
         } 
+        // 2. RECOVER -> ADD BACK TO GOOGLE
         else if (recoverBtn) {
             const ts = recoverBtn.dataset.timestamp; 
-            const eventIndex = state.allEvents.findIndex(e => e.timestamp === ts); 
-            if (eventIndex > -1) { 
-                state.allEvents[eventIndex].isDone = false;
-                state.allEvents[eventIndex].isSynced = false; 
-                state.allEvents[eventIndex].googleId = null;  
+            const eventItem = state.allEvents.find(e => e.timestamp === ts); 
+            if (eventItem) { 
+                eventItem.isDone = false; 
                 dataManager.saveData(); 
                 updateAllDisplays(); 
-                checkAndTriggerSync(); 
+                
+                // ADD back to Google (It is active again)
+                const result = await upsertEventToGoogle(eventItem);
+                if (result.success && result.googleId) {
+                    eventItem.googleId = result.googleId;
+                    dataManager.saveData();
+                }
             }
         }
+        // 3. PERMANENT DELETE
         else if (deleteBtn) { 
             const ts = deleteBtn.dataset.timestamp; 
             modals.showConfirmModal(ts, false, 'task_permanent'); 
         } 
+        // 4. EDIT
         else if (editBtn) { 
             const ts = editBtn.dataset.timestamp; 
             modals.showEventModal(null, ts); 
@@ -169,33 +166,29 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
         restoreFocus();
 
         try {
-            // FIX: Handle Event/Task Deletion
             if (itemType === 'task_permanent') {
                 const eventToDelete = state.allEvents.find(e => e.timestamp === identifier);
-                
-                // 1. Delete from Google Calendar (Fire and Forget)
-                if (eventToDelete && eventToDelete.googleId) {
-                     if (!window.ipcRenderer) {
-                         deleteSingleEvent(eventToDelete.googleId).catch(err => console.error("Cloud delete fail", err));
-                     }
-                }
-                
-                // 2. Delete from Local State
+                const googleId = eventToDelete ? eventToDelete.googleId : null;
+
+                // Local Delete
                 state.allEvents = state.allEvents.filter(e => e.timestamp !== identifier); 
-                
-                // 3. CRITICAL FIX: FORCE PUSH TO SUPABASE
-                // pass 'true' to saveData to tell it "Overwrite the cloud, do not merge".
-                await dataManager.saveData(true); 
-                
+                dataManager.saveData(); 
                 updateAllDisplays(); 
-                setStatus("Deadline Deleted");
+                setStatus("Deleting...");
+
+                // Cloud Delete
+                if (googleId) {
+                    await deleteEventFromGoogle(googleId);
+                    setStatus("Deleted");
+                } else {
+                    setStatus("Deleted (Local)");
+                }
             } 
             else if (itemType === 'course') { 
                 modals.deleteCourse(identifier); 
                 setStatus("Course Deleted");
             } 
             else { 
-                // This function already handles force push internally
                 await dataManager.deleteItem(identifier); 
                 updateAllDisplays(); 
                 setStatus("Log Deleted");
@@ -235,30 +228,16 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
 
     if (refs.googleLogoutBtn) {
         refs.googleLogoutBtn.addEventListener('click', async () => {
-            const originalText = refs.googleLogoutBtn.textContent;
             refs.googleLogoutBtn.textContent = "Disconnecting...";
             refs.googleLogoutBtn.disabled = true;
 
             try {
-                let result = { success: false };
-                if (window.ipcRenderer) {
-                    result = await window.ipcRenderer.invoke('google-auth-logout');
-                } else {
-                    handleSignoutClick();
-                    result = { success: true }; 
-                }
-                
+                handleSignoutClick();
+                localStorage.removeItem('hasAcceptedSyncTerms');
+                setStatus("Google Calendar Disconnected");
                 modals.hideSettingsModal();
-
-                if (result.success) {
-                    localStorage.removeItem('hasAcceptedSyncTerms');
-                    setStatus("Google Calendar Disconnected");
-                } else {
-                    setStatus("Logout Failed", true);
-                }
             } catch (e) {
                 console.error(e);
-                modals.hideSettingsModal();
             } finally {
                 refs.googleLogoutBtn.textContent = "Disconnect Google Calendar";
                 refs.googleLogoutBtn.disabled = false;
@@ -345,5 +324,3 @@ function init(appState, uiRefs, timerFuncs, modalFuncs, chartFuncs, viewFuncs, d
     refs.pomodoroPromptConfirmBtn.addEventListener('click', () => { if (state.nextPomodoroPhase) { timers.beginNewPomodoroPhase(state.nextPomodoroPhase.duration, state.nextPomodoroPhase.name); modals.hidePomodoroPrompt(); modals.playAlarm(true); restoreFocus(); } });
     refs.pomodoroPromptStopBtn.addEventListener('click', () => { timers.stopPomodoro(); modals.hidePomodoroPrompt(); modals.playAlarm(true); restoreFocus(); });
 }
-
-export { init };

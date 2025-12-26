@@ -1,5 +1,5 @@
-import { getLocalISODateString, generateUUID } from './utils-v2.2.23.js';
-import { supabase } from './supabaseClient-v2.2.23.js';
+import { getLocalISODateString, generateUUID } from './utils-v2.2.24.js';
+import { supabase } from './supabaseClient-v2.2.24.js';
 
 let state, refs;
 let isSyncing = false;
@@ -144,7 +144,7 @@ export async function syncWithSupabase(forcePush = false) {
     try {
         let hasChanges = false;
 
-        // --- STEP 1: FETCH FROM SEPARATE TABLES ---
+        // --- STEP 1: FETCH & TAG DATA ---
         if (!forcePush) {
             const [sessionsReq, scoresReq, settingsReq] = await Promise.all([
                 supabase.from('study_sessions').select('*'),
@@ -153,28 +153,29 @@ export async function syncWithSupabase(forcePush = false) {
             ]);
 
             // Helper to merge Cloud data into Local
-            const mergeData = (localArr, cloudArr) => {
+            const mergeData = (localArr, cloudArr, itemType) => {
                 const map = new Map();
-                localArr.forEach(i => map.set(i.id, i)); // Local items
+                localArr.forEach(i => map.set(i.id, i)); 
                 
                 cloudArr.forEach(i => {
+                    // CRITICAL FIX: Re-attach the 'type' property
+                    i.type = itemType; 
+
                     if (!map.has(i.id)) {
                         hasChanges = true;
-                        map.set(i.id, i); // Add missing cloud items
+                        map.set(i.id, i); 
                     }
-                    // Note: We could add logic here to overwrite local if cloud 'updated_at' is newer
                 });
                 return Array.from(map.values());
             };
 
-            if (sessionsReq.data) state.allSessions = mergeData(state.allSessions, sessionsReq.data);
-            if (scoresReq.data) state.allScores = mergeData(state.allScores, scoresReq.data);
+            // Tag sessions as 'session', scores as 'score'
+            if (sessionsReq.data) state.allSessions = mergeData(state.allSessions, sessionsReq.data, 'session');
+            if (scoresReq.data) state.allScores = mergeData(state.allScores, scoresReq.data, 'score');
 
             if (settingsReq.data) {
-                // Settings Merge
                 const cloudSettings = settingsReq.data;
                 if (cloudSettings.courses && JSON.stringify(cloudSettings.courses) !== JSON.stringify(state.allCourses)) {
-                    // Union of courses
                     const mergedCourses = [...new Set([...state.allCourses, ...cloudSettings.courses])].sort();
                     state.allCourses = mergedCourses;
                     hasChanges = true;
@@ -182,12 +183,10 @@ export async function syncWithSupabase(forcePush = false) {
                 if (cloudSettings.preferences) {
                     state.streakTarget = cloudSettings.preferences.streakTarget || state.streakTarget;
                     state.heatmapTargetHours = cloudSettings.preferences.heatmapTargetHours || state.heatmapTargetHours;
-                    // Timer settings can be merged here if needed
                 }
             }
 
             if (hasChanges) {
-                // Update Local Storage immediately if we pulled new data
                 localStorage.setItem('studySessions', JSON.stringify(state.allSessions));
                 localStorage.setItem('studyScores', JSON.stringify(state.allScores));
                 localStorage.setItem('studyCourses', JSON.stringify(state.allCourses));
@@ -195,9 +194,7 @@ export async function syncWithSupabase(forcePush = false) {
             }
         }
 
-        // --- STEP 2: PUSH TO SEPARATE TABLES ---
-        
-        // 2a. Prepare Payloads (Map local JS objects to DB Columns)
+        // --- STEP 2: PUSH ---
         const sessionPayload = state.allSessions.map(s => ({
             id: s.id,
             user_id: user.id,
@@ -232,9 +229,6 @@ export async function syncWithSupabase(forcePush = false) {
             timers: JSON.parse(localStorage.getItem('activeTimer') || '{}')
         };
 
-        // 2b. Parallel Upsert
-        // We use upsert so existing IDs update, new IDs insert.
-        // For 'user_settings', it's always one row per user.
         await Promise.all([
             supabase.from('study_sessions').upsert(sessionPayload),
             supabase.from('exam_scores').upsert(scorePayload),

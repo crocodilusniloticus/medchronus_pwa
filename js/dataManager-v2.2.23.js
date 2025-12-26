@@ -1,5 +1,5 @@
-import { getLocalISODateString, generateUUID } from './utils-v2.2.22.js';
-import { supabase } from './supabaseClient-v2.2.22.js';
+import { getLocalISODateString, generateUUID } from './utils-v2.2.23.js';
+import { supabase } from './supabaseClient-v2.2.23.js';
 
 let state, refs;
 let isSyncing = false;
@@ -24,10 +24,7 @@ export function saveTimerProgress() {
             startTime: state.stopwatchStartTime,
             isPaused: state.isStopwatchPaused,
             pausedSeconds: state.stopwatchSeconds,
-            context: {
-                course: refs.courseSelect.value,
-                notes: refs.sessionNotes.value.trim()
-            }
+            context: { course: refs.courseSelect.value, notes: refs.sessionNotes.value.trim() }
         };
     } else if (state.pomodoroState !== 'idle') {
         activeTimerData = {
@@ -37,10 +34,7 @@ export function saveTimerProgress() {
             isPaused: state.isPomodoroPaused,
             pausedRemainingSeconds: state.isPomodoroPaused ? state.pomodoroPausedTime : state.pomodoroSecondsLeft,
             pomodoroState: state.pomodoroState,
-            context: {
-                course: refs.pomodoroCourseSelect.value,
-                notes: refs.pomodoroNotes.value.trim()
-            }
+            context: { course: refs.pomodoroCourseSelect.value, notes: refs.pomodoroNotes.value.trim() }
         };
     } else if (state.isCountdownRunning || state.isCountdownPaused) {
         activeTimerData = {
@@ -49,10 +43,7 @@ export function saveTimerProgress() {
             originalDuration: state.countdownOriginalDuration,
             isPaused: state.isCountdownPaused,
             pausedRemainingSeconds: state.isCountdownPaused ? state.countdownPausedTime : state.countdownSecondsLeft,
-            context: {
-                course: refs.countdownCourseSelect.value,
-                notes: refs.countdownNotes.value.trim()
-            }
+            context: { course: refs.countdownCourseSelect.value, notes: refs.countdownNotes.value.trim() }
         };
     }
 
@@ -84,27 +75,20 @@ export async function saveData(forcePush = false) {
     saveTimerProgress();
     calculateStreak();
 
-    // 2. Trigger Cloud Sync
+    // 2. Trigger Relational Cloud Sync
     await syncWithSupabase(forcePush);
 }
 
 export function loadData() {
-    // Helper to ensure every item has a UUID for reliable syncing
+    // Ensure every item has a UUID
     const ensureIDs = (arr) => arr.map(item => {
-        if (!item.id) {
-    // Falls back to timestamp if available, ensuring Device A and B generate the same ID
-    item.id = item.timestamp ? `legacy-${item.timestamp}` : generateUUID();
-}
+        if (!item.id) item.id = generateUUID();
         return item;
     });
 
-    state.allSessions = ensureIDs(JSON.parse(localStorage.getItem('studySessions')) || [])
-        .filter(s => s && s.timestamp && s.course);
-    state.allScores = ensureIDs(JSON.parse(localStorage.getItem('studyScores')) || [])
-        .filter(s => s && s.timestamp && s.course);
-    state.allEvents = ensureIDs(JSON.parse(localStorage.getItem('studyEvents')) || [])
-        .map(e => ({...e, isDone: typeof e.isDone === 'boolean' ? e.isDone : false}))
-        .filter(e => e && e.date && e.title && e.timestamp);
+    state.allSessions = ensureIDs(JSON.parse(localStorage.getItem('studySessions')) || []).filter(s => s && s.timestamp);
+    state.allScores = ensureIDs(JSON.parse(localStorage.getItem('studyScores')) || []).filter(s => s && s.timestamp);
+    state.allEvents = ensureIDs(JSON.parse(localStorage.getItem('studyEvents')) || []).map(e => ({...e, isDone: typeof e.isDone === 'boolean' ? e.isDone : false}));
     
     const savedCourses = JSON.parse(localStorage.getItem('studyCourses'));
     if (savedCourses && savedCourses.length > 0) {
@@ -117,7 +101,6 @@ export function loadData() {
     state.lastSelectedCourse = localStorage.getItem('lastSelectedCourse');
     state.streakTarget = parseInt(localStorage.getItem('streakTarget')) || 7;
     state.streakMinMinutes = parseInt(localStorage.getItem('streakMinMinutes')) || 15;
-
     state.heatmapTargetHours = parseInt(localStorage.getItem('heatmapTargetHours')) || 8;
     state.heatmapOverdriveHours = parseInt(localStorage.getItem('heatmapOverdriveHours')) || 10;
 
@@ -141,10 +124,13 @@ export function loadData() {
     }
 
     calculateStreak();
+
+    // Trigger initial pull
+    syncWithSupabase(false);
 }
 
 // -------------------------------------------------------------------------
-// SYNC ENGINE (UUID Aware)
+// NEW RELATIONAL SYNC ENGINE
 // -------------------------------------------------------------------------
 export async function syncWithSupabase(forcePush = false) {
     if (isSyncing || !navigator.onLine) return;
@@ -153,88 +139,139 @@ export async function syncWithSupabase(forcePush = false) {
     if (!user) return; 
 
     isSyncing = true;
-    updateSyncStatus(forcePush ? "Deleting..." : "Syncing...", false);
+    updateSyncStatus(forcePush ? "Saving..." : "Syncing...", false);
 
     try {
-        let merged = false;
+        let hasChanges = false;
 
-        // STEP 1: Fetch Cloud Data (Sessions & Scores ONLY)
+        // --- STEP 1: FETCH FROM SEPARATE TABLES ---
         if (!forcePush) {
-            const { data: cloudRow, error } = await supabase
-                .from('user_data')
-                .select('content')
-                .eq('user_id', user.id)
-                .single();
+            const [sessionsReq, scoresReq, settingsReq] = await Promise.all([
+                supabase.from('study_sessions').select('*'),
+                supabase.from('exam_scores').select('*'),
+                supabase.from('user_settings').select('*').single()
+            ]);
 
-            if (error && error.code !== 'PGRST116') {
-                throw error;
+            // Helper to merge Cloud data into Local
+            const mergeData = (localArr, cloudArr) => {
+                const map = new Map();
+                localArr.forEach(i => map.set(i.id, i)); // Local items
+                
+                cloudArr.forEach(i => {
+                    if (!map.has(i.id)) {
+                        hasChanges = true;
+                        map.set(i.id, i); // Add missing cloud items
+                    }
+                    // Note: We could add logic here to overwrite local if cloud 'updated_at' is newer
+                });
+                return Array.from(map.values());
+            };
+
+            if (sessionsReq.data) state.allSessions = mergeData(state.allSessions, sessionsReq.data);
+            if (scoresReq.data) state.allScores = mergeData(state.allScores, scoresReq.data);
+
+            if (settingsReq.data) {
+                // Settings Merge
+                const cloudSettings = settingsReq.data;
+                if (cloudSettings.courses && JSON.stringify(cloudSettings.courses) !== JSON.stringify(state.allCourses)) {
+                    // Union of courses
+                    const mergedCourses = [...new Set([...state.allCourses, ...cloudSettings.courses])].sort();
+                    state.allCourses = mergedCourses;
+                    hasChanges = true;
+                }
+                if (cloudSettings.preferences) {
+                    state.streakTarget = cloudSettings.preferences.streakTarget || state.streakTarget;
+                    state.heatmapTargetHours = cloudSettings.preferences.heatmapTargetHours || state.heatmapTargetHours;
+                    // Timer settings can be merged here if needed
+                }
             }
 
-            if (cloudRow && cloudRow.content) {
-                const cloudData = cloudRow.content;
-                
-                // Helper to merge arrays by ID
-                const mergeArrays = (localArr, cloudArr) => {
-                    const map = new Map();
-                    // 1. Put Cloud items in map
-                    cloudArr.forEach(item => {
-                        const key = item.id || item.timestamp;
-                        if(key) map.set(key, item);
-                    });
-                    // 2. Overwrite with Local items
-                    localArr.forEach(item => {
-                        if(!item.id) item.id = generateUUID(); 
-                        const key = item.id || item.timestamp;
-                        if(key) map.set(key, item);
-                    });
-                    return Array.from(map.values());
-                };
-
-                // STRICTLY MERGE ONLY SESSIONS AND SCORES
-                // WE DO NOT TOUCH EVENTS HERE.
-                const mergedSessions = mergeArrays(state.allSessions, cloudData.sessions || []);
-                const mergedScores = mergeArrays(state.allScores, cloudData.scores || []);
-                const mergedCourses = [...new Set([...state.allCourses, ...(cloudData.courses || [])])].sort();
-
-                if (mergedSessions.length !== state.allSessions.length || 
-                    mergedScores.length !== state.allScores.length) {
-                    
-                    state.allSessions = mergedSessions;
-                    state.allScores = mergedScores;
-                    state.allCourses = mergedCourses;
-                    
-                    saveData(false); 
-                    merged = true;
-                }
+            if (hasChanges) {
+                // Update Local Storage immediately if we pulled new data
+                localStorage.setItem('studySessions', JSON.stringify(state.allSessions));
+                localStorage.setItem('studyScores', JSON.stringify(state.allScores));
+                localStorage.setItem('studyCourses', JSON.stringify(state.allCourses));
+                calculateStreak();
             }
         }
 
-        // STEP 2: Push Local Data to Cloud (EXPLICITLY EXCLUDING EVENTS)
-        const payload = {
-            sessions: state.allSessions,
-            scores: state.allScores,
-            // events: [], // Intentionally omitted or empty to ensure no data leaks
+        // --- STEP 2: PUSH TO SEPARATE TABLES ---
+        
+        // 2a. Prepare Payloads (Map local JS objects to DB Columns)
+        const sessionPayload = state.allSessions.map(s => ({
+            id: s.id,
+            user_id: user.id,
+            course: s.course,
+            seconds: s.seconds || 0,
+            duration: s.duration,
+            notes: s.notes || "",
+            timestamp: s.timestamp
+        }));
+
+        const scorePayload = state.allScores.map(s => ({
+            id: s.id,
+            user_id: user.id,
+            course: s.course,
+            score: s.score,
+            notes: s.notes || "",
+            timestamp: s.timestamp
+        }));
+
+        const settingsPayload = {
+            user_id: user.id,
             courses: state.allCourses,
             preferences: {
                 streakTarget: state.streakTarget,
-                heatmapTarget: state.heatmapTargetHours,
-            }
+                heatmapTargetHours: state.heatmapTargetHours,
+                pomodoroSettings: {
+                    focus: state.pomodoroFocusDuration,
+                    shortBreak: state.pomodoroShortBreakDuration,
+                    longBreak: state.pomodoroLongBreakDuration
+                }
+            },
+            timers: JSON.parse(localStorage.getItem('activeTimer') || '{}')
         };
 
-        const { error: upsertError } = await supabase
-            .from('user_data')
-            .upsert({ user_id: user.id, content: payload });
+        // 2b. Parallel Upsert
+        // We use upsert so existing IDs update, new IDs insert.
+        // For 'user_settings', it's always one row per user.
+        await Promise.all([
+            supabase.from('study_sessions').upsert(sessionPayload),
+            supabase.from('exam_scores').upsert(scorePayload),
+            supabase.from('user_settings').upsert(settingsPayload)
+        ]);
 
-        if (upsertError) throw upsertError;
-
-        updateSyncStatus(forcePush ? "Item Deleted" : (merged ? "Cloud Merged" : "Cloud Saved"), false);
+        updateSyncStatus("Synced", false);
 
     } catch (err) {
         console.error("Supabase Sync Error:", err);
-        updateSyncStatus("Cloud Error", true);
+        updateSyncStatus("Sync Error", true);
     } finally {
         isSyncing = false;
-        window.dispatchEvent(new CustomEvent('data-updated'));
+        if (!forcePush) window.dispatchEvent(new CustomEvent('data-updated'));
+    }
+}
+
+// --- OPTIMIZED DELETE ---
+export async function deleteItem(id) { 
+    // 1. Identify Item
+    const sessionIndex = state.allSessions.findIndex(i => i.id === id || i.timestamp === id);
+    const scoreIndex = state.allScores.findIndex(i => i.id === id || i.timestamp === id);
+    
+    // 2. Local Delete
+    if (sessionIndex > -1) state.allSessions.splice(sessionIndex, 1);
+    if (scoreIndex > -1) state.allScores.splice(scoreIndex, 1);
+    
+    // 3. Save Local
+    localStorage.setItem('studySessions', JSON.stringify(state.allSessions));
+    localStorage.setItem('studyScores', JSON.stringify(state.allScores));
+    
+    // 4. Cloud Delete (Direct)
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+        // We fire and forget the delete request to the cloud
+        if (sessionIndex > -1) supabase.from('study_sessions').delete().eq('id', id).then();
+        if (scoreIndex > -1) supabase.from('exam_scores').delete().eq('id', id).then();
     }
 }
 
@@ -261,10 +298,8 @@ export function restoreActiveTimer() {
     }
 
     const now = Date.now();
-    
     try {
         if (recoveredTimer.isPaused) {
-            // If paused, we just reload the state variables
             if (recoveredTimer.type === 'stopwatch') {
                 state.stopwatchStartTime = recoveredTimer.startTime;
                 state.stopwatchSeconds = recoveredTimer.pausedSeconds;
@@ -276,7 +311,6 @@ export function restoreActiveTimer() {
                 state.pomodoroState = recoveredTimer.pomodoroState;
                 state.pomodoroPausedTime = recoveredTimer.pausedRemainingSeconds;
                 state.isPomodoroPaused = true;
-                // UI needs secondsLeft to display correct time
                 state.pomodoroSecondsLeft = recoveredTimer.pausedRemainingSeconds;
             } else if (recoveredTimer.type === 'countdown') {
                 state.countdownStartTime = recoveredTimer.startTime;
@@ -287,20 +321,15 @@ export function restoreActiveTimer() {
                 state.countdownSecondsLeft = recoveredTimer.pausedRemainingSeconds;
             }
         } else {
-            // Timer was RUNNING. Calculate if it finished while we were gone.
-            
             if (recoveredTimer.type === 'stopwatch') {
-                // Stopwatch never "finishes" on its own. It keeps running.
                 state.stopwatchStartTime = recoveredTimer.startTime;
                 state.isStopwatchRunning = true;
-                // stopwatchSeconds will be calculated in timers.js startTimer loop
             } 
             else if (recoveredTimer.type === 'pomodoro') {
                 const elapsedSinceStart = Math.floor((now - recoveredTimer.startTime) / 1000);
                 const duration = recoveredTimer.originalDuration;
                 
                 if (elapsedSinceStart >= duration) {
-                    // It finished while closed
                     if (recoveredTimer.pomodoroState === 'studying') {
                         state.allSessions.push({ 
                             id: generateUUID(),
@@ -314,14 +343,12 @@ export function restoreActiveTimer() {
                         saveData();
                     }
                     localStorage.removeItem('activeTimer');
-                    return; // Done
+                    return; 
                 } else {
-                    // Still running
                     state.pomodoroStartTime = recoveredTimer.startTime;
                     state.pomodoroOriginalDuration = recoveredTimer.originalDuration;
                     state.pomodoroState = recoveredTimer.pomodoroState;
                     state.isPomodoroPaused = false;
-                    // Will be updated by interval
                 }
             } 
             else if (recoveredTimer.type === 'countdown') {
@@ -329,7 +356,6 @@ export function restoreActiveTimer() {
                 const duration = recoveredTimer.originalDuration;
 
                 if (elapsedSinceStart >= duration) {
-                    // Finished
                      state.allSessions.push({ 
                         id: generateUUID(),
                         type:'session',
@@ -343,7 +369,6 @@ export function restoreActiveTimer() {
                     localStorage.removeItem('activeTimer');
                     return;
                 } else {
-                    // Still running
                     state.countdownStartTime = recoveredTimer.startTime;
                     state.countdownOriginalDuration = recoveredTimer.originalDuration;
                     state.isCountdownRunning = true;
@@ -351,7 +376,6 @@ export function restoreActiveTimer() {
             }
         }
 
-        // Restore Input Context
         if (recoveredTimer.context) {
             if (recoveredTimer.type === 'stopwatch') {
                 refs.courseSelect.value = recoveredTimer.context.course;
@@ -374,10 +398,6 @@ export function restoreActiveTimer() {
 export function checkForRecoveredSession() {
     restoreActiveTimer();
 }
-
-// -------------------------------------------------------------------------
-// STANDARD LOGIC
-// -------------------------------------------------------------------------
 
 export function calculateStreak() {
     if (!state.allSessions || state.allSessions.length === 0) {
@@ -481,15 +501,6 @@ export function importData(file) {
         }
     };
     reader.readAsText(file);
-}
-
-export async function deleteItem(idOrTimestamp) { 
-    // Delete by ID first, fallback to timestamp
-    state.allSessions = state.allSessions.filter(i => (i.id !== idOrTimestamp && i.timestamp !== idOrTimestamp)); 
-    state.allScores = state.allScores.filter(i => (i.id !== idOrTimestamp && i.timestamp !== idOrTimestamp)); 
-    state.allEvents = state.allEvents.filter(i => (i.id !== idOrTimestamp && i.timestamp !== idOrTimestamp)); 
-    
-    await saveData(true); 
 }
 
 export function logSession(course, seconds, notes, startTimeStamp) { 

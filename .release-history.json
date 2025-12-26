@@ -1,5 +1,10 @@
 [
   {
+    "version": "2.2.25",
+    "date": "2025-12-26T13:04:53.133Z",
+    "note": "supa delete fix"
+  },
+  {
     "version": "2.2.24",
     "date": "2025-12-26T12:33:14.076Z",
     "note": "minor data storage on supa fix"

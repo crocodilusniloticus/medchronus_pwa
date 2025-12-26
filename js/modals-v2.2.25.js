@@ -1,6 +1,6 @@
-import { getLocalISODateString, injectJalaaliDate, generateUUID } from './utils-v2.2.24.js';
-import { saveAudioFile, getAudioFile } from './database-v2.2.24.js';
-import { upsertEventToGoogle } from './googleSync-v2.2.24.js'; // Import the new function
+import { getLocalISODateString, injectJalaaliDate, generateUUID } from './utils-v2.2.25.js';
+import { saveAudioFile, getAudioFile } from './database-v2.2.25.js';
+import { upsertEventToGoogle } from './googleSync-v2.2.25.js'; // Import the new function
 
 let state, refs, dataManager, updateAllDisplays;
 let getTimeChartOptions, getScoreChartOptions, getCharts, getTrendChartOptions; 

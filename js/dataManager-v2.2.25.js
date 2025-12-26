@@ -1,5 +1,5 @@
-import { getLocalISODateString, generateUUID } from './utils-v2.2.24.js';
-import { supabase } from './supabaseClient-v2.2.24.js';
+import { getLocalISODateString, generateUUID } from './utils-v2.2.25.js';
+import { supabase } from './supabaseClient-v2.2.25.js';
 
 let state, refs;
 let isSyncing = false;
@@ -141,10 +141,13 @@ export async function syncWithSupabase(forcePush = false) {
     isSyncing = true;
     updateSyncStatus(forcePush ? "Saving..." : "Syncing...", false);
 
+    // 1. Get the time we last successfully synced
+    const lastSyncStr = localStorage.getItem('lastSyncTimestamp');
+    const lastSyncDate = lastSyncStr ? new Date(lastSyncStr) : null;
+
     try {
         let hasChanges = false;
 
-        // --- STEP 1: FETCH & TAG DATA ---
         if (!forcePush) {
             const [sessionsReq, scoresReq, settingsReq] = await Promise.all([
                 supabase.from('study_sessions').select('*'),
@@ -152,34 +155,67 @@ export async function syncWithSupabase(forcePush = false) {
                 supabase.from('user_settings').select('*').single()
             ]);
 
-            // Helper to merge Cloud data into Local
-            const mergeData = (localArr, cloudArr, itemType) => {
-                const map = new Map();
-                localArr.forEach(i => map.set(i.id, i)); 
-                
-                cloudArr.forEach(i => {
-                    // CRITICAL FIX: Re-attach the 'type' property
-                    i.type = itemType; 
+            // Smart Merge: Handles Remote Deletions and Updates
+            const smartMerge = (localArr, cloudArr, itemType) => {
+                const cloudMap = new Map(cloudArr.map(i => [i.id, i]));
+                const merged = [];
+                const processedIds = new Set();
 
-                    if (!map.has(i.id)) {
-                        hasChanges = true;
-                        map.set(i.id, i); 
+                // A. Process items that exist Locally
+                localArr.forEach(localItem => {
+                    if (cloudMap.has(localItem.id)) {
+                        // 1. Exists in both: Use Cloud version (Syncs edits from other devices)
+                        const cloudItem = cloudMap.get(localItem.id);
+                        cloudItem.type = itemType;
+                        merged.push(cloudItem);
+                        processedIds.add(localItem.id);
+                        
+                        // Check if data actually changed to trigger UI update
+                        if (JSON.stringify(localItem) !== JSON.stringify(cloudItem)) hasChanges = true;
+
+                    } else {
+                        // 2. Exists Locally, but MISSING in Cloud
+                        const itemTime = new Date(localItem.timestamp);
+                        
+                        // Logic: If the item is OLDER than our last sync, it must have been deleted on the cloud.
+                        if (lastSyncDate && itemTime < lastSyncDate) {
+                            // It's a "Ghost" item (Deleted on another device) -> Drop it.
+                            hasChanges = true; 
+                        } else {
+                            // It's a "New" item (Created offline recently) -> Keep it to push later.
+                            merged.push(localItem);
+                            processedIds.add(localItem.id);
+                        }
                     }
                 });
-                return Array.from(map.values());
+
+                // B. Add items that exist Only in Cloud (New data from other devices)
+                cloudArr.forEach(cloudItem => {
+                    if (!processedIds.has(cloudItem.id)) {
+                        cloudItem.type = itemType;
+                        merged.push(cloudItem);
+                        hasChanges = true;
+                    }
+                });
+
+                return merged;
             };
 
-            // Tag sessions as 'session', scores as 'score'
-            if (sessionsReq.data) state.allSessions = mergeData(state.allSessions, sessionsReq.data, 'session');
-            if (scoresReq.data) state.allScores = mergeData(state.allScores, scoresReq.data, 'score');
+            // Apply Smart Merge
+            if (sessionsReq.data) state.allSessions = smartMerge(state.allSessions, sessionsReq.data, 'session');
+            if (scoresReq.data) state.allScores = smartMerge(state.allScores, scoresReq.data, 'score');
 
             if (settingsReq.data) {
                 const cloudSettings = settingsReq.data;
-                if (cloudSettings.courses && JSON.stringify(cloudSettings.courses) !== JSON.stringify(state.allCourses)) {
+                // Merge Courses (Union)
+                if (cloudSettings.courses) {
                     const mergedCourses = [...new Set([...state.allCourses, ...cloudSettings.courses])].sort();
-                    state.allCourses = mergedCourses;
-                    hasChanges = true;
+                    if (JSON.stringify(mergedCourses) !== JSON.stringify(state.allCourses)) {
+                        state.allCourses = mergedCourses;
+                        hasChanges = true;
+                    }
                 }
+                // Merge Preferences
                 if (cloudSettings.preferences) {
                     state.streakTarget = cloudSettings.preferences.streakTarget || state.streakTarget;
                     state.heatmapTargetHours = cloudSettings.preferences.heatmapTargetHours || state.heatmapTargetHours;
@@ -195,6 +231,7 @@ export async function syncWithSupabase(forcePush = false) {
         }
 
         // --- STEP 2: PUSH ---
+        // (This part remains largely the same, but now we push the "Cleaned" list)
         const sessionPayload = state.allSessions.map(s => ({
             id: s.id,
             user_id: user.id,
@@ -235,6 +272,9 @@ export async function syncWithSupabase(forcePush = false) {
             supabase.from('user_settings').upsert(settingsPayload)
         ]);
 
+        // CRITICAL: Update timestamp ONLY after a successful sync
+        localStorage.setItem('lastSyncTimestamp', new Date().toISOString());
+        
         updateSyncStatus("Synced", false);
 
     } catch (err) {
@@ -248,13 +288,26 @@ export async function syncWithSupabase(forcePush = false) {
 
 // --- OPTIMIZED DELETE ---
 export async function deleteItem(id) { 
-    // 1. Identify Item
-    const sessionIndex = state.allSessions.findIndex(i => i.id === id || i.timestamp === id);
-    const scoreIndex = state.allScores.findIndex(i => i.id === id || i.timestamp === id);
+    // 1. Identify the Object first to get the REAL UUID
+    // (The passed 'id' might be a timestamp, which Supabase won't accept as an ID)
+    const sessionItem = state.allSessions.find(i => i.id === id || i.timestamp === id);
+    const scoreItem = state.allScores.find(i => i.id === id || i.timestamp === id);
     
+    // If not found, exit
+    if (!sessionItem && !scoreItem) return;
+
+    // Capture the definitive UUID from the object
+    const targetId = sessionItem ? sessionItem.id : scoreItem.id;
+
     // 2. Local Delete
-    if (sessionIndex > -1) state.allSessions.splice(sessionIndex, 1);
-    if (scoreIndex > -1) state.allScores.splice(scoreIndex, 1);
+    if (sessionItem) {
+        const index = state.allSessions.indexOf(sessionItem);
+        if (index > -1) state.allSessions.splice(index, 1);
+    }
+    if (scoreItem) {
+        const index = state.allScores.indexOf(scoreItem);
+        if (index > -1) state.allScores.splice(index, 1);
+    }
     
     // 3. Save Local
     localStorage.setItem('studySessions', JSON.stringify(state.allSessions));
@@ -262,10 +315,14 @@ export async function deleteItem(id) {
     
     // 4. Cloud Delete (Direct)
     const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-        // We fire and forget the delete request to the cloud
-        if (sessionIndex > -1) supabase.from('study_sessions').delete().eq('id', id).then();
-        if (scoreIndex > -1) supabase.from('exam_scores').delete().eq('id', id).then();
+    if (user && targetId) {
+        // Use targetId (the real UUID) instead of the raw argument
+        if (sessionItem) {
+            await supabase.from('study_sessions').delete().eq('id', targetId);
+        }
+        if (scoreItem) {
+            await supabase.from('exam_scores').delete().eq('id', targetId);
+        }
     }
 }
 

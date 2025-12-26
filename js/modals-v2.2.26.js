@@ -1,6 +1,6 @@
-import { getLocalISODateString, injectJalaaliDate, generateUUID } from './utils-v2.2.25.js';
-import { saveAudioFile, getAudioFile } from './database-v2.2.25.js';
-import { upsertEventToGoogle } from './googleSync-v2.2.25.js'; // Import the new function
+import { getLocalISODateString, injectJalaaliDate, generateUUID } from './utils-v2.2.26.js';
+import { saveAudioFile, getAudioFile } from './database-v2.2.26.js';
+import { upsertEventToGoogle } from './googleSync-v2.2.26.js'; // Import the new function
 
 let state, refs, dataManager, updateAllDisplays;
 let getTimeChartOptions, getScoreChartOptions, getCharts, getTrendChartOptions; 
@@ -251,7 +251,8 @@ export function saveEdit() {
             activeItem.timestamp = newDateObj.toISOString(); 
         } 
         activeItem.course = newCourse; 
-        activeItem.notes = newNotes; 
+        activeItem.notes = newNotes;
+         activeItem.savedAt = new Date().toISOString(); 
         
         if (sessionItem) { 
             const newDuration = refs.editDuration.value; 

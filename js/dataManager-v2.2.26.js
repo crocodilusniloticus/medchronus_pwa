@@ -1,5 +1,5 @@
-import { getLocalISODateString, generateUUID } from './utils-v2.2.25.js';
-import { supabase } from './supabaseClient-v2.2.25.js';
+import { getLocalISODateString, generateUUID } from './utils-v2.2.26.js';
+import { supabase } from './supabaseClient-v2.2.26.js';
 
 let state, refs;
 let isSyncing = false;
@@ -175,7 +175,7 @@ export async function syncWithSupabase(forcePush = false) {
 
                     } else {
                         // 2. Exists Locally, but MISSING in Cloud
-                        const itemTime = new Date(localItem.timestamp);
+                        const itemTime = new Date(localItem.savedAt || localItem.timestamp);
                         
                         // Logic: If the item is OLDER than our last sync, it must have been deleted on the cloud.
                         if (lastSyncDate && itemTime < lastSyncDate) {
@@ -562,7 +562,8 @@ export function logSession(course, seconds, notes, startTimeStamp) {
         duration: formatTime(seconds),
         seconds: seconds,
         notes: notes.trim(),
-        timestamp: startTimeStamp || new Date().toISOString()
+        timestamp: startTimeStamp || new Date().toISOString(),
+        savedAt: new Date().toISOString()
     }); 
     saveData(); 
     refs.sessionNotes.value = ''; 
@@ -581,7 +582,8 @@ export function logScore() {
         course: refs.scoreCourseSelect.value,
         score:s,
         notes: refs.scoreNotes.value.trim(),
-        timestamp:new Date().toISOString()
+        timestamp:new Date().toISOString(),
+        savedAt: new Date().toISOString()
     }); 
     saveData(); 
     refs.scoreInput.value='';

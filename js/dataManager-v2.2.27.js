@@ -1,5 +1,5 @@
-import { getLocalISODateString, generateUUID } from './utils-v2.2.26.js';
-import { supabase } from './supabaseClient-v2.2.26.js';
+import { getLocalISODateString, generateUUID } from './utils-v2.2.27.js';
+import { supabase } from './supabaseClient-v2.2.27.js';
 
 let state, refs;
 let isSyncing = false;
@@ -59,6 +59,7 @@ export async function saveData(forcePush = false) {
     localStorage.setItem('studySessions', JSON.stringify(state.allSessions));
     localStorage.setItem('studyScores', JSON.stringify(state.allScores));
     localStorage.setItem('studyEvents', JSON.stringify(state.allEvents));
+    localStorage.setItem('settingsUpdatedAt', state.settingsUpdatedAt);
     localStorage.setItem('studyCourses', JSON.stringify(state.allCourses));
     localStorage.setItem('streakTarget', state.streakTarget);
     localStorage.setItem('streakMinMinutes', state.streakMinMinutes);
@@ -89,7 +90,8 @@ export function loadData() {
     state.allSessions = ensureIDs(JSON.parse(localStorage.getItem('studySessions')) || []).filter(s => s && s.timestamp);
     state.allScores = ensureIDs(JSON.parse(localStorage.getItem('studyScores')) || []).filter(s => s && s.timestamp);
     state.allEvents = ensureIDs(JSON.parse(localStorage.getItem('studyEvents')) || []).map(e => ({...e, isDone: typeof e.isDone === 'boolean' ? e.isDone : false}));
-    
+    state.settingsUpdatedAt = localStorage.getItem('settingsUpdatedAt') || new Date(0).toISOString();
+   
     const savedCourses = JSON.parse(localStorage.getItem('studyCourses'));
     if (savedCourses && savedCourses.length > 0) {
         state.allCourses = savedCourses;
@@ -164,14 +166,30 @@ export async function syncWithSupabase(forcePush = false) {
                 // A. Process items that exist Locally
                 localArr.forEach(localItem => {
                     if (cloudMap.has(localItem.id)) {
-                        // 1. Exists in both: Use Cloud version (Syncs edits from other devices)
+                        // 1. Exists in BOTH: Compare timestamps to see which is newer
                         const cloudItem = cloudMap.get(localItem.id);
-                        cloudItem.type = itemType;
-                        merged.push(cloudItem);
-                        processedIds.add(localItem.id);
                         
-                        // Check if data actually changed to trigger UI update
-                        if (JSON.stringify(localItem) !== JSON.stringify(cloudItem)) hasChanges = true;
+                        // Get timestamps (default to 0 if missing)
+                        const localTime = new Date(localItem.savedAt || 0).getTime();
+                        // Supabase usually returns snake_case 'saved_at'
+                        const cloudTime = new Date(cloudItem.saved_at || cloudItem.savedAt || 0).getTime();
+
+                        if (localTime > cloudTime) {
+                            // Local is newer: Keep Local (will push to cloud later)
+                            localItem.type = itemType;
+                            merged.push(localItem);
+                            hasChanges = true; // Flag that we have new data to push
+                        } else {
+                            // Cloud is newer (or equal): Keep Cloud
+                            cloudItem.type = itemType;
+                            // Ensure internal naming consistency (camelCase)
+                            cloudItem.savedAt = cloudItem.saved_at || cloudItem.savedAt; 
+                            merged.push(cloudItem);
+                            
+                            // Check if this actually changed our local data
+                            if (JSON.stringify(localItem) !== JSON.stringify(cloudItem)) hasChanges = true;
+                        }
+                        processedIds.add(localItem.id);
 
                     } else {
                         // 2. Exists Locally, but MISSING in Cloud
@@ -179,20 +197,20 @@ export async function syncWithSupabase(forcePush = false) {
                         
                         // Logic: If the item is OLDER than our last sync, it must have been deleted on the cloud.
                         if (lastSyncDate && itemTime < lastSyncDate) {
-                            // It's a "Ghost" item (Deleted on another device) -> Drop it.
-                            hasChanges = true; 
+                            hasChanges = true; // Drop it
                         } else {
-                            // It's a "New" item (Created offline recently) -> Keep it to push later.
+                            // It's a "New" item created offline -> Keep it
                             merged.push(localItem);
                             processedIds.add(localItem.id);
                         }
                     }
                 });
 
-                // B. Add items that exist Only in Cloud (New data from other devices)
+                // B. Add items that exist Only in Cloud
                 cloudArr.forEach(cloudItem => {
                     if (!processedIds.has(cloudItem.id)) {
                         cloudItem.type = itemType;
+                        cloudItem.savedAt = cloudItem.saved_at || cloudItem.savedAt; // Normalize
                         merged.push(cloudItem);
                         hasChanges = true;
                     }
@@ -200,25 +218,36 @@ export async function syncWithSupabase(forcePush = false) {
 
                 return merged;
             };
-
             // Apply Smart Merge
             if (sessionsReq.data) state.allSessions = smartMerge(state.allSessions, sessionsReq.data, 'session');
             if (scoresReq.data) state.allScores = smartMerge(state.allScores, scoresReq.data, 'score');
 
             if (settingsReq.data) {
-                const cloudSettings = settingsReq.data;
-                // Merge Courses (Union)
-                if (cloudSettings.courses) {
-                    const mergedCourses = [...new Set([...state.allCourses, ...cloudSettings.courses])].sort();
-                    if (JSON.stringify(mergedCourses) !== JSON.stringify(state.allCourses)) {
-                        state.allCourses = mergedCourses;
-                        hasChanges = true;
+                const cloud = settingsReq.data;
+                
+                // Compare timestamps
+                const cloudTime = new Date(cloud.updated_at || 0).getTime();
+                const localTime = new Date(state.settingsUpdatedAt || 0).getTime();
+
+                // ONLY accept cloud settings if they are NEWER than local
+                if (cloudTime > localTime) {
+                    if (cloud.courses) state.allCourses = cloud.courses;
+                    
+                    if (cloud.preferences) {
+                        state.streakTarget = cloud.preferences.streakTarget || state.streakTarget;
+                        state.heatmapTargetHours = cloud.preferences.heatmapTargetHours || state.heatmapTargetHours;
+                        
+                        if (cloud.preferences.pomodoroSettings) {
+                            const p = cloud.preferences.pomodoroSettings;
+                            state.pomodoroFocusDuration = p.focus || state.pomodoroFocusDuration;
+                            state.pomodoroShortBreakDuration = p.shortBreak || state.pomodoroShortBreakDuration;
+                            state.pomodoroLongBreakDuration = p.longBreak || state.pomodoroLongBreakDuration;
+                        }
                     }
-                }
-                // Merge Preferences
-                if (cloudSettings.preferences) {
-                    state.streakTarget = cloudSettings.preferences.streakTarget || state.streakTarget;
-                    state.heatmapTargetHours = cloudSettings.preferences.heatmapTargetHours || state.heatmapTargetHours;
+                    // Update local timestamp to match cloud so we are in sync
+                    state.settingsUpdatedAt = cloud.updated_at;
+                    localStorage.setItem('settingsUpdatedAt', state.settingsUpdatedAt);
+                    hasChanges = true;
                 }
             }
 
@@ -239,7 +268,8 @@ export async function syncWithSupabase(forcePush = false) {
             seconds: s.seconds || 0,
             duration: s.duration,
             notes: s.notes || "",
-            timestamp: s.timestamp
+            timestamp: s.timestamp,
+            saved_at: s.savedAt || new Date().toISOString()
         }));
 
         const scorePayload = state.allScores.map(s => ({
@@ -248,7 +278,8 @@ export async function syncWithSupabase(forcePush = false) {
             course: s.course,
             score: s.score,
             notes: s.notes || "",
-            timestamp: s.timestamp
+            timestamp: s.timestamp,
+            saved_at: s.savedAt || new Date().toISOString()
         }));
 
         const settingsPayload = {
@@ -263,13 +294,14 @@ export async function syncWithSupabase(forcePush = false) {
                     longBreak: state.pomodoroLongBreakDuration
                 }
             },
-            timers: JSON.parse(localStorage.getItem('activeTimer') || '{}')
+            timers: JSON.parse(localStorage.getItem('activeTimer') || '{}'),
+            updated_at: state.settingsUpdatedAt
         };
 
         await Promise.all([
             supabase.from('study_sessions').upsert(sessionPayload),
             supabase.from('exam_scores').upsert(scorePayload),
-            supabase.from('user_settings').upsert(settingsPayload)
+            supabase.from('user_settings').upsert(settingsPayload, { onConflict: 'user_id' })
         ]);
 
         // CRITICAL: Update timestamp ONLY after a successful sync

@@ -1,6 +1,6 @@
 {
   "name": "medchronos",
-  "version": "2.2.26",
+  "version": "2.2.27",
   "description": "A study tracker for medical exams.",
   "main": "main.js",
   "repository": {

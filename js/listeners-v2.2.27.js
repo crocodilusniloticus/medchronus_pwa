@@ -1,4 +1,4 @@
-import { fetchGoogleEventsMaster, upsertEventToGoogle, deleteEventFromGoogle, handleSignoutClick } from './googleSync-v2.2.26.js';
+import { fetchGoogleEventsMaster, upsertEventToGoogle, deleteEventFromGoogle, handleSignoutClick } from './googleSync-v2.2.27.js';
 
 let refs, timers, modals, charts, views, dataManager, state, updateAllDisplays;
 let statusTimeout = null; 

@@ -1324,7 +1324,8 @@ body.breathing-mode .breathing-card {
     body::-webkit-scrollbar { display: none; }
 
     .app-container {
-        min-width: 100%;
+        min-width: fit-content;
+        zoom: 0.8;
         width: 100%;
         height: auto;
         display: flex;

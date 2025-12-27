@@ -1,6 +1,6 @@
-import { getLocalISODateString, injectJalaaliDate, generateUUID } from './utils-v2.2.26.js';
-import { saveAudioFile, getAudioFile } from './database-v2.2.26.js';
-import { upsertEventToGoogle } from './googleSync-v2.2.26.js'; // Import the new function
+import { getLocalISODateString, injectJalaaliDate, generateUUID } from './utils-v2.2.27.js';
+import { saveAudioFile, getAudioFile } from './database-v2.2.27.js';
+import { upsertEventToGoogle } from './googleSync-v2.2.27.js'; // Import the new function
 
 let state, refs, dataManager, updateAllDisplays;
 let getTimeChartOptions, getScoreChartOptions, getCharts, getTrendChartOptions; 
@@ -245,17 +245,32 @@ export function saveEdit() {
     if (activeItem) { 
         if(!activeItem.id) activeItem.id = generateUUID();
         if (newDateStr) { 
-            const originalDateObj = new Date(ts); 
-            const newDateObj = new Date(newDateStr); 
-            newDateObj.setHours(originalDateObj.getHours(), originalDateObj.getMinutes(), originalDateObj.getSeconds()); 
-            activeItem.timestamp = newDateObj.toISOString(); 
-        } 
-        activeItem.course = newCourse; 
+            const originalDateObj = new Date(ts);
+            // 1. Break the string "2025-12-27" into numbers
+            const parts = newDateStr.split('-');
+            const year = parseInt(parts[0]);
+            const month = parseInt(parts[1]) - 1; // JS months are 0-11
+            const day = parseInt(parts[2]);
+
+            // 2. Create the date using numbers. This forces "Local Midnight", not "UTC Midnight".
+            // If you are in NY, this creates Dec 27 00:00 NY time.
+            const newDateObj = new Date(year, month, day); 
+
+            // 3. Apply the original time (hours/min/sec) to this new local date
+            newDateObj.setHours(
+                originalDateObj.getHours(), 
+                originalDateObj.getMinutes(), 
+                originalDateObj.getSeconds()
+            ); 
+            
+        activeItem.timestamp = newDateObj.toISOString(); 
+            }
+        activeItem.course = newCourse;
         activeItem.notes = newNotes;
-         activeItem.savedAt = new Date().toISOString(); 
-        
-        if (sessionItem) { 
-            const newDuration = refs.editDuration.value; 
+        activeItem.savedAt = new Date().toISOString();
+
+        if (sessionItem) {
+            const newDuration = refs.editDuration.value;
             if (!/^\d{2}:\d{2}:\d{2}$/.test(newDuration)) { 
                 refs.editError.textContent = "Duration must be in HH:MM:SS format."; 
                 return; 
@@ -281,11 +296,31 @@ export function showPomodoroPrompt(phaseName, nextDuration) { refs.pomodoroPromp
 export function hidePomodoroPrompt() { refs.pomodoroPromptModal.style.display = 'none'; }
 export function showCoursesModal() { refs.coursesModal.style.display = 'flex'; refs.newCourseName.focus(); }
 export function hideCoursesModal() { refs.coursesModal.style.display = 'none'; }
-export function addCourse() { const name = refs.newCourseName.value.trim(); if (name && !state.allCourses.includes(name)) { state.allCourses.push(name); state.allCourses.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())); dataManager.saveData(); updateAllDisplays(); refs.newCourseName.value = ''; } }
-export function deleteCourse(courseName) { state.allCourses = state.allCourses.filter(c => c !== courseName); dataManager.saveData(); updateAllDisplays(); }
+export function addCourse() { 
+    const name = refs.newCourseName.value.trim(); 
+    if (name && !state.allCourses.includes(name)) { 
+        state.allCourses.push(name); 
+        state.allCourses.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())); 
+        
+        // ADD THIS:
+        state.settingsUpdatedAt = new Date().toISOString();
+
+        dataManager.saveData(); 
+        updateAllDisplays(); 
+        refs.newCourseName.value = ''; 
+    } 
+}
+export function deleteCourse(courseName) { 
+    state.allCourses = state.allCourses.filter(c => c !== courseName); 
+    
+    state.settingsUpdatedAt = new Date().toISOString();
+
+    dataManager.saveData(); 
+    updateAllDisplays(); 
+}
 export function showSettingsModal() { if(refs.settingsModal) refs.settingsModal.style.display = 'flex'; if(refs.deadlineUrgencyInput) refs.deadlineUrgencyInput.value = state.deadlineUrgencyDays; if(refs.settingHeatmapTarget) refs.settingHeatmapTarget.value = state.heatmapTargetHours; if(refs.settingFocusDuration) refs.settingFocusDuration.value = state.pomodoroFocusDuration || 50; if(refs.settingShortBreakDuration) refs.settingShortBreakDuration.value = state.pomodoroShortBreakDuration || 10; if(refs.settingLongBreakDuration) refs.settingLongBreakDuration.value = state.pomodoroLongBreakDuration || 20; }
 export function hideSettingsModal() { refs.settingsModal.style.display = 'none'; }
-export function saveSettings() { const urgency = parseInt(refs.deadlineUrgencyInput.value); if(urgency && urgency > 0) state.deadlineUrgencyDays = urgency; if(refs.settingHeatmapTarget) { const val = parseFloat(refs.settingHeatmapTarget.value); if(val > 0) state.heatmapTargetHours = val; } if(refs.settingFocusDuration) { const val = parseInt(refs.settingFocusDuration.value); if(val > 0) state.pomodoroFocusDuration = val; } if(refs.settingShortBreakDuration) { const val = parseInt(refs.settingShortBreakDuration.value); if(val > 0) state.pomodoroShortBreakDuration = val; } if(refs.settingLongBreakDuration) { const val = parseInt(refs.settingLongBreakDuration.value); if(val > 0) state.pomodoroLongBreakDuration = val; } dataManager.saveData(); updateAllDisplays(); hideSettingsModal(); }
+export function saveSettings() { const urgency = parseInt(refs.deadlineUrgencyInput.value); if(urgency && urgency > 0) state.deadlineUrgencyDays = urgency; if(refs.settingHeatmapTarget) { const val = parseFloat(refs.settingHeatmapTarget.value); if(val > 0) state.heatmapTargetHours = val; } if(refs.settingFocusDuration) { const val = parseInt(refs.settingFocusDuration.value); if(val > 0) state.pomodoroFocusDuration = val; } if(refs.settingShortBreakDuration) { const val = parseInt(refs.settingShortBreakDuration.value); if(val > 0) state.pomodoroShortBreakDuration = val; } if(refs.settingLongBreakDuration) { const val = parseInt(refs.settingLongBreakDuration.value); if(val > 0) state.pomodoroLongBreakDuration = val; } state.settingsUpdatedAt = new Date().toISOString(); dataManager.saveData(); updateAllDisplays(); hideSettingsModal(); }
 
 // --- UPDATED PLAY ALARM ---
 export async function playAlarm(stop = false) { 

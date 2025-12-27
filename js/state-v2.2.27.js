@@ -5,7 +5,7 @@ export const state = {
     allScores: [], 
     allEvents: [],
     lastSelectedCourse: null,
-
+    settingsUpdatedAt: null,
     calendar: null, 
     timeChart: null, 
     scoreChart: null,
